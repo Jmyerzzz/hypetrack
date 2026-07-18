@@ -41,6 +41,7 @@ function toSeries(portfolio: HlPortfolio): Record<string, PortfolioSeries> {
   for (const [period, source] of Object.entries(PERP_PERIODS)) {
     const data = raw.get(source as HlPortfolio[number][0]);
     if (!data) continue;
+    const combined = raw.get(period as HlPortfolio[number][0]);
     out[period] = {
       accountValue: data.accountValueHistory.map(([t, v]) => ({
         t,
@@ -48,6 +49,8 @@ function toSeries(portfolio: HlPortfolio): Record<string, PortfolioSeries> {
       })),
       pnl: data.pnlHistory.map(([t, v]) => ({ t, v: num(v) })),
       volume: num(data.vlm),
+      combinedValue:
+        combined?.accountValueHistory.map(([t, v]) => ({ t, v: num(v) })) ?? [],
     };
   }
   return out;

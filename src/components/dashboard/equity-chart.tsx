@@ -13,10 +13,11 @@ import {
 } from "recharts";
 import { EmptyState, Pnl, SegmentedControl } from "@/components/ui";
 import type { PortfolioSeries } from "@/lib/api-types";
-import { fmtCompact, fmtTime, fmtUsd } from "@/lib/format";
+import { fmtCompact, fmtPct, fmtTime, fmtUsd } from "@/lib/format";
 
 type Range = "day" | "week" | "month" | "allTime";
 type Metric = "equity" | "pnl";
+type PnlUnit = "usd" | "pct";
 
 const RANGE_LABELS: { value: Range; label: string }[] = [
   { value: "day", label: "24H" },
@@ -25,26 +26,62 @@ const RANGE_LABELS: { value: Range; label: string }[] = [
   { value: "allTime", label: "All" },
 ];
 
-type Point = { t: number; v: number };
+type Point = { t: number; v: number; usd: number };
+
+/**
+ * Denominator for the % view of PnL: perp equity at the window start, or —
+ * for all-time, where the account starts at zero — the peak capital ever
+ * deployed (accountValue − pnl at each sample).
+ */
+function pnlDenominator(series: PortfolioSeries, range: Range): number | null {
+  if (range !== "allTime") {
+    const start = series.accountValue.find((p) => p.v > 1)?.v;
+    return start != null && start > 1 ? start : null;
+  }
+  let peak = 0;
+  const n = Math.min(series.accountValue.length, series.pnl.length);
+  for (let i = 0; i < n; i++) {
+    peak = Math.max(peak, series.accountValue[i].v - series.pnl[i].v);
+  }
+  return peak > 1 ? peak : null;
+}
 
 function ChartTooltip({
   active,
   payload,
   metric,
   range,
+  unit,
 }: {
   active?: boolean;
   payload?: { payload: Point }[];
   metric: Metric;
   range: Range;
+  unit: PnlUnit;
 }) {
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
+  const isPct = metric === "pnl" && unit === "pct";
   return (
     <div className="rounded-lg border border-edge2 bg-panel2 px-3 py-2 shadow-xl">
       <p className="num text-sm font-semibold text-ink">
-        {metric === "pnl" ? <Pnl value={point.v} /> : fmtUsd(point.v)}
+        {metric === "pnl" ? (
+          isPct ? (
+            <span className={point.v >= 0 ? "text-upt" : "text-downt"}>
+              {fmtPct(point.v, { signed: true })}
+            </span>
+          ) : (
+            <Pnl value={point.usd} />
+          )
+        ) : (
+          fmtUsd(point.usd)
+        )}
       </p>
+      {isPct && (
+        <p className="num mt-0.5 text-[11px] text-ink2">
+          {fmtUsd(point.usd)} PnL
+        </p>
+      )}
       <p className="mt-0.5 text-[11px] text-ink3">
         {fmtTime(point.t, { withYear: range === "allTime" })}
       </p>
@@ -59,42 +96,58 @@ export function EquityChart({
 }) {
   const [metric, setMetric] = useState<Metric>("equity");
   const [range, setRange] = useState<Range>("month");
+  const [pnlUnit, setPnlUnit] = useState<PnlUnit>("usd");
 
   const series = portfolio[range];
+  const isPnl = metric === "pnl";
+
+  const denominator = useMemo(
+    () => (series ? pnlDenominator(series, range) : null),
+    [series, range],
+  );
+  const unit: PnlUnit =
+    pnlUnit === "pct" && denominator == null ? "usd" : pnlUnit;
+  const isPct = isPnl && unit === "pct";
 
   const data: Point[] = useMemo(() => {
     if (!series) return [];
-    const raw = metric === "equity" ? series.accountValue : series.pnl;
-    if (raw.length === 0) return [];
-    if (metric === "pnl") {
-      // Rebase so the window starts at 0 — the curve reads as "PnL this window".
-      const base = raw[0].v;
-      return raw.map((p) => ({ t: p.t, v: p.v - base }));
+    if (!isPnl) {
+      // Total account value (Hyperliquid's combined series) — perp margin
+      // alone hits $0 whenever the account is flat, which reads as a wipeout.
+      const raw = series.combinedValue.length
+        ? series.combinedValue
+        : series.accountValue;
+      return raw.map((p) => ({ t: p.t, v: p.v, usd: p.v }));
     }
-    return raw.map((p) => ({ t: p.t, v: p.v }));
-  }, [series, metric]);
+    const raw = series.pnl;
+    if (raw.length === 0) return [];
+    const base = raw[0].v;
+    return raw.map((p) => {
+      const usd = p.v - base;
+      return {
+        t: p.t,
+        v: isPct && denominator != null ? usd / denominator : usd,
+        usd,
+      };
+    });
+  }, [series, isPnl, isPct, denominator]);
 
-  const { min, max, last, delta } = useMemo(() => {
-    if (data.length === 0) return { min: 0, max: 0, last: 0, delta: 0 };
+  const { min, max, last } = useMemo(() => {
+    if (data.length === 0) return { min: 0, max: 0, last: data[0] };
     let lo = Number.POSITIVE_INFINITY;
     let hi = Number.NEGATIVE_INFINITY;
     for (const p of data) {
       lo = Math.min(lo, p.v);
       hi = Math.max(hi, p.v);
     }
-    return {
-      min: lo,
-      max: hi,
-      last: data[data.length - 1].v,
-      delta: data[data.length - 1].v - data[0].v,
-    };
+    return { min: lo, max: hi, last: data[data.length - 1] };
   }, [data]);
 
   // Where zero sits inside [max…min], for the green/red gradient split.
   const zeroOffset = max <= 0 ? 0 : min >= 0 ? 1 : max / (max - min);
 
-  const isPnl = metric === "pnl";
   const hasData = data.length > 1;
+  const delta = hasData ? data[data.length - 1].usd - data[0].usd : 0;
 
   const tickFormat = (t: number): string => {
     const d = new Date(t);
@@ -109,36 +162,75 @@ export function EquityChart({
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
+  const yTickFormat = (v: number): string =>
+    isPct
+      ? fmtPct(v, { signed: v < 0 })
+      : `${v < 0 ? "−" : ""}$${fmtCompact(Math.abs(v))}`;
+
   return (
     <section className="card flex h-full flex-col p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SegmentedControl
           options={[
-            { value: "equity", label: "Perp equity" },
+            { value: "equity", label: "Account value" },
             { value: "pnl", label: "PnL" },
           ]}
           value={metric}
           onChange={setMetric}
         />
-        <SegmentedControl
-          options={RANGE_LABELS}
-          value={range}
-          onChange={setRange}
-          size="xs"
-        />
+        <div className="flex items-center gap-2">
+          {isPnl && (
+            <SegmentedControl
+              options={[
+                { value: "usd", label: "$" },
+                { value: "pct", label: "%" },
+              ]}
+              value={unit}
+              onChange={setPnlUnit}
+              size="xs"
+            />
+          )}
+          <SegmentedControl
+            options={RANGE_LABELS}
+            value={range}
+            onChange={setRange}
+            size="xs"
+          />
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         {isPnl ? (
-          <Pnl value={last} className="text-2xl font-semibold tracking-tight" />
+          isPct ? (
+            <span
+              className={`num text-2xl font-semibold tracking-tight ${
+                (last?.v ?? 0) >= 0 ? "text-upt" : "text-downt"
+              }`}
+            >
+              {fmtPct(last?.v ?? 0, { signed: true })}
+            </span>
+          ) : (
+            <Pnl
+              value={last?.usd ?? 0}
+              className="text-2xl font-semibold tracking-tight"
+            />
+          )
         ) : (
           <span className="num text-2xl font-semibold tracking-tight">
-            {fmtUsd(last)}
+            {fmtUsd(last?.usd ?? 0)}
           </span>
         )}
+        {isPct && <Pnl value={last?.usd ?? 0} className="text-sm" />}
         {!isPnl && hasData && <Pnl value={delta} className="text-sm" />}
         <span className="text-xs text-ink3">
-          {RANGE_LABELS.find((r) => r.value === range)?.label} · perp account
+          {RANGE_LABELS.find((r) => r.value === range)?.label} ·{" "}
+          {isPnl
+            ? isPct
+              ? range === "allTime"
+                ? "perp PnL vs peak capital"
+                : "perp PnL vs starting equity"
+              : "perp PnL"
+            : "total equity"}
         </span>
       </div>
 
@@ -214,9 +306,7 @@ export function EquityChart({
               <YAxis
                 orientation="right"
                 domain={["auto", "auto"]}
-                tickFormatter={(v: number) =>
-                  `${v < 0 ? "−" : ""}$${fmtCompact(Math.abs(v))}`
-                }
+                tickFormatter={yTickFormat}
                 tick={{
                   fontSize: 11,
                   fill: "var(--color-ink3)",
@@ -234,7 +324,9 @@ export function EquityChart({
                 />
               )}
               <Tooltip
-                content={<ChartTooltip metric={metric} range={range} />}
+                content={
+                  <ChartTooltip metric={metric} range={range} unit={unit} />
+                }
                 cursor={{ stroke: "var(--chart-cursor)", strokeWidth: 1 }}
               />
               <Area
@@ -249,7 +341,7 @@ export function EquityChart({
                   strokeWidth: 2,
                   stroke: "var(--color-panel)",
                   fill: isPnl
-                    ? last >= 0
+                    ? (last?.v ?? 0) >= 0
                       ? "var(--color-up)"
                       : "var(--color-down)"
                     : "var(--color-accent)",

@@ -5,9 +5,17 @@ import type { Trade } from "./trades";
 export type PortfolioPoint = { t: number; v: number };
 
 export type PortfolioSeries = {
+  /** Perp margin-account equity (drops to ~0 whenever the account is flat). */
   accountValue: PortfolioPoint[];
+  /** Cumulative perp PnL. */
   pnl: PortfolioPoint[];
   volume: number;
+  /**
+   * Hyperliquid's combined account value (perp + spot + vaults) — the number
+   * the portfolio page charts. Used for the equity curve so idle USDC doesn't
+   * read as the account "going to zero".
+   */
+  combinedValue: PortfolioPoint[];
 };
 
 export type PeriodKey = "day" | "week" | "month" | "allTime";
