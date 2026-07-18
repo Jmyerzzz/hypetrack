@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { fmtPct, fmtUsdSigned } from "@/lib/format";
-import type { ViewMode } from "@/lib/hooks";
 
 /** Signed USD amount in status color; sign carried by text as well as color. */
 export function Pnl({
@@ -215,120 +214,6 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
       {hint && <p className="max-w-md text-[13px] text-ink3">{hint}</p>}
     </div>
   );
-}
-
-/** Switches a data list between the dense table and stacked cards. */
-export function ViewToggle({
-  value,
-  onChange,
-}: {
-  value: ViewMode;
-  onChange: (mode: ViewMode) => void;
-}) {
-  const options: { mode: ViewMode; label: string; path: React.ReactNode }[] = [
-    {
-      mode: "cards",
-      label: "Card",
-      path: (
-        <>
-          <rect x="3.5" y="3.5" width="17" height="7" rx="2" />
-          <rect x="3.5" y="13.5" width="17" height="7" rx="2" />
-        </>
-      ),
-    },
-    {
-      mode: "table",
-      label: "Table",
-      path: (
-        <>
-          <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-          <path d="M3.5 9.5h17M9.5 9.5v10" />
-        </>
-      ),
-    },
-  ];
-  return (
-    <div className="inline-flex rounded-lg border border-edge bg-inset p-0.5">
-      {options.map((opt) => (
-        <button
-          key={opt.mode}
-          type="button"
-          onClick={() => onChange(opt.mode)}
-          aria-pressed={value === opt.mode}
-          title={`${opt.label} view`}
-          className={`rounded-md px-2 py-1.5 transition-colors ${
-            value === opt.mode
-              ? "bg-panel2 text-ink shadow-sm ring-1 ring-edge2"
-              : "text-ink3 hover:text-ink2"
-          }`}
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            className="size-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-          >
-            {opt.path}
-          </svg>
-          <span className="sr-only">{opt.label} view</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/**
- * One record rendered as a card; the card-view counterpart of a table row.
- * Intentionally non-interactive — cards that expand put a real <button>
- * inside so the control is focusable and announced.
- */
-export function DataCard({
-  children,
-  active = false,
-  className = "",
-}: {
-  children: React.ReactNode;
-  active?: boolean;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`rounded-xl border p-3 transition-colors ${
-        active ? "border-edge2 bg-panel2/60" : "border-edge bg-panel2/25"
-      } ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-/** Label-over-value pair inside a card; `full` spans both grid columns. */
-export function CardField({
-  label,
-  children,
-  align = "left",
-  full = false,
-}: {
-  label: string;
-  children: React.ReactNode;
-  align?: "left" | "right";
-  full?: boolean;
-}) {
-  return (
-    <div
-      className={`${align === "right" ? "text-right" : ""} ${full ? "col-span-2" : ""}`}
-    >
-      <p className="text-[10px] tracking-wide text-ink3 uppercase">{label}</p>
-      <p className="mt-0.5 text-[13px] text-ink">{children}</p>
-    </div>
-  );
-}
-
-/** Vertical stack of cards with consistent gutters. */
-export function CardList({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col gap-2.5 p-3">{children}</div>;
 }
 
 export function SegmentedControl<T extends string>({

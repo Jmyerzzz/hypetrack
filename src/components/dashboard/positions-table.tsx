@@ -1,153 +1,82 @@
 "use client";
 
-import {
-  CardField,
-  CardList,
-  CoinTag,
-  DataCard,
-  DirectionBadge,
-  Pnl,
-  Td,
-  Th,
-  ViewToggle,
-} from "@/components/ui";
+import { CoinTag, DirectionBadge, Pnl, Td, Th } from "@/components/ui";
 import type { PositionView } from "@/lib/api-types";
 import { fmtPrice, fmtSize, fmtUsd } from "@/lib/format";
-import { useViewMode } from "@/lib/hooks";
-
-function PositionCard({ p }: { p: PositionView }) {
-  return (
-    <DataCard>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <CoinTag coin={p.coin} sub={`${p.leverage}× ${p.leverageType}`} />
-          <DirectionBadge direction={p.direction} />
-        </div>
-        <div className="shrink-0 text-right">
-          <Pnl
-            value={p.unrealizedPnl}
-            pct={p.roe}
-            className="text-[15px] font-semibold"
-          />
-          <p className="text-[10px] text-ink3">unrealized</p>
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-edge pt-3">
-        <CardField label="Size">
-          <span className="num">{fmtSize(Math.abs(p.szi))}</span>
-          <span className="num ml-1.5 text-[11px] text-ink3">
-            {fmtUsd(p.positionValue, { compact: true })}
-          </span>
-        </CardField>
-        <CardField label="Margin" align="right">
-          <span className="num">{fmtUsd(p.marginUsed)}</span>
-        </CardField>
-        <CardField label="Entry">
-          <span className="num">{fmtPrice(p.entryPx)}</span>
-        </CardField>
-        <CardField label="Mark" align="right">
-          <span className="num">{fmtPrice(p.markPx)}</span>
-        </CardField>
-        <CardField label="Liq. price">
-          <span className="num text-warn">{fmtPrice(p.liquidationPx)}</span>
-        </CardField>
-        <CardField label="Funding" align="right">
-          <Pnl value={p.fundingSinceOpen} className="text-[13px]" />
-        </CardField>
-      </div>
-    </DataCard>
-  );
-}
 
 export function PositionsTable({ positions }: { positions: PositionView[] }) {
-  const [view, setView] = useViewMode();
   const totalUpnl = positions.reduce((a, p) => a + p.unrealizedPnl, 0);
   const totalNotional = positions.reduce((a, p) => a + p.positionValue, 0);
 
   return (
     <section className="card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge px-4 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-edge px-4 py-3">
         <h2 className="text-sm font-semibold">
           Open positions
           <span className="ml-2 text-xs font-normal text-ink3">
             {positions.length}
           </span>
         </h2>
-        <div className="flex items-center gap-3">
-          <p className="num text-xs text-ink2">
-            {fmtUsd(totalNotional, { compact: true })} notional · uPnL{" "}
-            <Pnl value={totalUpnl} className="text-xs" />
-          </p>
-          <ViewToggle value={view} onChange={setView} />
-        </div>
+        <p className="num text-xs text-ink2">
+          {fmtUsd(totalNotional, { compact: true })} notional · uPnL{" "}
+          <Pnl value={totalUpnl} className="text-xs" />
+        </p>
       </div>
-
-      {view === "cards" ? (
-        <CardList>
-          {positions.map((p) => (
-            <PositionCard key={p.coin} p={p} />
-          ))}
-        </CardList>
-      ) : (
-        <div className="scroll-thin overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse">
-            <thead>
-              <tr className="border-b border-edge">
-                <Th align="left">Market</Th>
-                <Th align="left">Side</Th>
-                <Th>Size</Th>
-                <Th>Entry</Th>
-                <Th>Mark</Th>
-                <Th>Liq. price</Th>
-                <Th>Margin</Th>
-                <Th>Funding</Th>
-                <Th>Unrealized PnL</Th>
+      <div className="scroll-thin overflow-x-auto">
+        <table className="w-full min-w-[860px] border-collapse">
+          <thead>
+            <tr className="border-b border-edge">
+              <Th align="left">Market</Th>
+              <Th align="left">Side</Th>
+              <Th>Size</Th>
+              <Th>Entry</Th>
+              <Th>Mark</Th>
+              <Th>Liq. price</Th>
+              <Th>Margin</Th>
+              <Th>Funding</Th>
+              <Th>Unrealized PnL</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {positions.map((p) => (
+              <tr
+                key={p.coin}
+                className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/50"
+              >
+                <Td align="left">
+                  <CoinTag
+                    coin={p.coin}
+                    sub={`${p.leverage}× ${p.leverageType}`}
+                  />
+                </Td>
+                <Td align="left">
+                  <DirectionBadge direction={p.direction} />
+                </Td>
+                <Td>
+                  <span className="num block">{fmtSize(Math.abs(p.szi))}</span>
+                  <span className="num block text-[11px] text-ink3">
+                    {fmtUsd(p.positionValue, { compact: true })}
+                  </span>
+                </Td>
+                <Td className="num">{fmtPrice(p.entryPx)}</Td>
+                <Td className="num">{fmtPrice(p.markPx)}</Td>
+                <Td className="num text-warn">{fmtPrice(p.liquidationPx)}</Td>
+                <Td className="num">{fmtUsd(p.marginUsed)}</Td>
+                <Td>
+                  <Pnl value={p.fundingSinceOpen} className="text-[13px]" />
+                </Td>
+                <Td>
+                  <Pnl
+                    value={p.unrealizedPnl}
+                    pct={p.roe}
+                    className="text-[13px]"
+                  />
+                </Td>
               </tr>
-            </thead>
-            <tbody>
-              {positions.map((p) => (
-                <tr
-                  key={p.coin}
-                  className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/50"
-                >
-                  <Td align="left">
-                    <CoinTag
-                      coin={p.coin}
-                      sub={`${p.leverage}× ${p.leverageType}`}
-                    />
-                  </Td>
-                  <Td align="left">
-                    <DirectionBadge direction={p.direction} />
-                  </Td>
-                  <Td>
-                    <span className="num block">
-                      {fmtSize(Math.abs(p.szi))}
-                    </span>
-                    <span className="num block text-[11px] text-ink3">
-                      {fmtUsd(p.positionValue, { compact: true })}
-                    </span>
-                  </Td>
-                  <Td className="num">{fmtPrice(p.entryPx)}</Td>
-                  <Td className="num">{fmtPrice(p.markPx)}</Td>
-                  <Td className="num text-warn">{fmtPrice(p.liquidationPx)}</Td>
-                  <Td className="num">{fmtUsd(p.marginUsed)}</Td>
-                  <Td>
-                    <Pnl value={p.fundingSinceOpen} className="text-[13px]" />
-                  </Td>
-                  <Td>
-                    <Pnl
-                      value={p.unrealizedPnl}
-                      pct={p.roe}
-                      className="text-[13px]"
-                    />
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
