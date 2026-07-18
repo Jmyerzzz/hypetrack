@@ -53,6 +53,11 @@ npm run lint:fix  # biome check --write
 npm run typecheck # tsc --noEmit
 ```
 
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push
+to `main` and every pull request, in three parallel jobs: **lint & format**
+(`biome check` — which fails on unformatted code, since it verifies without
+writing — plus `tsc`), **tests** (`vitest`), and **build** (`next build`).
+
 ## How it works
 
 Everything is served from two Next.js route handlers that talk to
