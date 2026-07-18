@@ -4,6 +4,10 @@ A comprehensive portfolio tracker for [Hyperliquid](https://hyperliquid.xyz) tra
 accounts. Paste any wallet address — no keys, no sign-up — and get a full trading
 dashboard built from Hyperliquid's public info API.
 
+Scope: the **perp trading account** only. Spot wallet holdings are deliberately
+excluded from account value, PnL, volume, fills, and orders, so the numbers
+reflect trading performance rather than token bags.
+
 ## Features
 
 - **PnL in $ and %** — 24h / 7d / 30d / all-time, with an all-time % computed
@@ -19,11 +23,12 @@ dashboard built from Hyperliquid's public info API.
 - **Trade analytics** — win rate, profit factor, expectancy, average win/loss,
   largest win/loss, median hold time, long vs short split, net PnL by coin.
 - **Open positions** — size, entry/mark/liquidation price, leverage, margin,
-  funding since open, unrealized PnL and ROE.
-- **Everything else** — spot balances valued in USD, open orders, raw fills,
-  hourly funding events, and deposits/withdrawals/transfers.
+  funding since open, unrealized PnL and ROE — plus an account-risk breakdown
+  (margin used, maintenance margin, account leverage).
+- **Everything else** — open perp orders, raw fills, hourly funding events, and
+  deposits/withdrawals/transfers.
 - **Liquidations flagged**, TWAP fills marked, builder-dex perps (e.g.
-  `xyz:AAPL` stock perps) fully supported, spot pairs shown with readable names.
+  `xyz:AAPL` stock perps) fully supported.
 
 ## Getting started
 
@@ -48,11 +53,12 @@ Everything is served from two Next.js route handlers that talk to
 `https://api.hyperliquid.xyz/info` (no API key required):
 
 - `GET /api/overview/[address]` — clearinghouse state (positions, margin),
-  spot balances (valued via spot metadata mid prices), portfolio equity/PnL
-  history, and open orders. Cached ~30s, auto-refreshed by the client.
+  perp-account portfolio equity/PnL history, and open perp orders. Cached ~30s,
+  auto-refreshed by the client.
 - `GET /api/activity/[address]` — paginates `userFillsByTime` (up to 30k
-  fills), `userFunding`, and `userNonFundingLedgerUpdates`, then runs the trade
-  engine ([src/lib/trades.ts](src/lib/trades.ts)) and stats aggregation
+  fills, filtered to perp fills), `userFunding`, and
+  `userNonFundingLedgerUpdates`, then runs the trade engine
+  ([src/lib/trades.ts](src/lib/trades.ts)) and stats aggregation
   ([src/lib/stats.ts](src/lib/stats.ts)) server-side. Cached ~3min.
 
 ### Trade reconstruction

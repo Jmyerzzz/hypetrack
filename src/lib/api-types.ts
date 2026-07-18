@@ -37,21 +37,9 @@ export type PositionView = {
   fundingSinceOpen: number;
 };
 
-export type SpotBalanceView = {
-  token: number;
-  coin: string;
-  total: number;
-  hold: number;
-  price: number | null;
-  usdValue: number | null;
-  entryNtl: number;
-  unrealizedPnl: number | null;
-};
-
 export type OrderView = {
   oid: number;
   coin: string;
-  rawCoin: string;
   isBuy: boolean;
   limitPx: number;
   sz: number;
@@ -66,32 +54,32 @@ export type OrderView = {
   timestamp: number;
 };
 
+/**
+ * Scoped to the Hyperliquid perp trading account — spot wallet holdings are
+ * deliberately excluded from every value here.
+ */
 export type OverviewPayload = {
   address: string;
   fetchedAt: number;
   perpEquity: number;
-  spotValue: number;
-  totalEquity: number;
   withdrawable: number;
   marginUsed: number;
   totalNtlPos: number;
   maintenanceMarginUsed: number;
+  totalUnrealizedPnl: number;
   positions: PositionView[];
-  spotBalances: SpotBalanceView[];
   openOrders: OrderView[];
+  /** Perp-account portfolio series, keyed by day/week/month/allTime. */
   portfolio: Record<string, PortfolioSeries>;
   pnlSummary: PnlSummaryEntry[];
-  /** Lifetime traded volume as reported by Hyperliquid. */
+  /** Lifetime perp traded volume as reported by Hyperliquid. */
   allTimeVolume: number;
-  /** Pair-id → display name map for spot coins (e.g. "@107" → "HYPE/USDC"). */
-  spotPairNames: Record<string, string>;
 };
 
 export type FillView = {
   tid: number;
   time: number;
   coin: string;
-  isSpot: boolean;
   isBuy: boolean;
   dir: string;
   px: number;

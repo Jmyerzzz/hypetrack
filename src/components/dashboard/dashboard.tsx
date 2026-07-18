@@ -91,9 +91,9 @@ export function Dashboard({ address }: { address: string }) {
   const isEmptyAccount =
     overview.data &&
     activity.data &&
-    overview.data.totalEquity < 0.01 &&
-    activity.data.fillsTotal === 0 &&
-    activity.data.transfersTotal === 0;
+    overview.data.perpEquity < 0.01 &&
+    overview.data.positions.length === 0 &&
+    activity.data.fillsTotal === 0;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -189,8 +189,8 @@ export function Dashboard({ address }: { address: string }) {
           <>
             {isEmptyAccount && (
               <div className="card border-warn/30 bg-warn/5 px-4 py-3 text-[13px] text-ink2">
-                This address has no Hyperliquid history — no balances, fills, or
-                transfers were found.
+                This address has no Hyperliquid perp trading history — no
+                account balance, positions, or fills were found.
               </div>
             )}
 
@@ -226,7 +226,6 @@ export function Dashboard({ address }: { address: string }) {
               pending={activity.isPending}
               error={activity.isError ? (activity.error as Error) : null}
               onRetry={() => activity.refetch()}
-              spotPairNames={overview.data?.spotPairNames}
               openOrders={overview.data?.openOrders}
             />
           </>

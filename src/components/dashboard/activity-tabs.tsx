@@ -134,7 +134,7 @@ function CoverageNote({ activity }: { activity: ActivityPayload }) {
               .join(", ")}`}
         </>
       ) : (
-        "No fills found for this address."
+        "No perp fills found for this address."
       )}
     </p>
   );
@@ -145,14 +145,12 @@ export function ActivityTabs({
   pending,
   error,
   onRetry,
-  spotPairNames,
   openOrders,
 }: {
   activity: ActivityPayload | undefined;
   pending: boolean;
   error: Error | null;
   onRetry: () => void;
-  spotPairNames: Record<string, string> | undefined;
   openOrders: OrderView[] | undefined;
 }) {
   const [tab, setTab] = useState<Tab>("trades");
@@ -254,7 +252,6 @@ export function ActivityTabs({
             <FillsTable
               fills={activity.recentFills}
               fillsTotal={activity.fillsTotal}
-              spotPairNames={spotPairNames}
             />
           )}
           {tab === "funding" && (

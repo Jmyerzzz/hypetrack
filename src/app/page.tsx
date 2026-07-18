@@ -60,12 +60,12 @@ export default function Home() {
           <span className="bg-gradient-to-r from-accent2 to-mint bg-clip-text text-transparent">
             Hyperliquid
           </span>{" "}
-          account
+          trading account
         </h1>
         <p className="mt-4 max-w-xl text-center text-base text-pretty text-ink2">
-          Paste a wallet address and get a full trading dashboard: PnL in
-          dollars and percent, reconstructed trade history with entries and
-          exits, fees paid, and funding collected.
+          Paste a wallet address and get a full dashboard for its perp trading
+          account: PnL in dollars and percent, reconstructed trade history with
+          entries and exits, fees paid, and funding collected.
         </p>
 
         <div className="mt-9 flex w-full flex-col items-center">

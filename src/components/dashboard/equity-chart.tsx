@@ -17,7 +17,6 @@ import { fmtCompact, fmtTime, fmtUsd } from "@/lib/format";
 
 type Range = "day" | "week" | "month" | "allTime";
 type Metric = "equity" | "pnl";
-type Scope = "total" | "perp";
 
 const RANGE_LABELS: { value: Range; label: string }[] = [
   { value: "day", label: "24H" },
@@ -25,13 +24,6 @@ const RANGE_LABELS: { value: Range; label: string }[] = [
   { value: "month", label: "30D" },
   { value: "allTime", label: "All" },
 ];
-
-const PERP_KEY: Record<Range, string> = {
-  day: "perpDay",
-  week: "perpWeek",
-  month: "perpMonth",
-  allTime: "perpAllTime",
-};
 
 type Point = { t: number; v: number };
 
@@ -66,10 +58,9 @@ export function EquityChart({
   portfolio: Record<string, PortfolioSeries>;
 }) {
   const [metric, setMetric] = useState<Metric>("equity");
-  const [scope, setScope] = useState<Scope>("total");
   const [range, setRange] = useState<Range>("month");
 
-  const series = portfolio[scope === "total" ? range : PERP_KEY[range]];
+  const series = portfolio[range];
 
   const data: Point[] = useMemo(() => {
     if (!series) return [];
@@ -129,23 +120,12 @@ export function EquityChart({
           value={metric}
           onChange={setMetric}
         />
-        <div className="flex items-center gap-2">
-          <SegmentedControl
-            options={[
-              { value: "total", label: "Total" },
-              { value: "perp", label: "Perp" },
-            ]}
-            value={scope}
-            onChange={setScope}
-            size="xs"
-          />
-          <SegmentedControl
-            options={RANGE_LABELS}
-            value={range}
-            onChange={setRange}
-            size="xs"
-          />
-        </div>
+        <SegmentedControl
+          options={RANGE_LABELS}
+          value={range}
+          onChange={setRange}
+          size="xs"
+        />
       </div>
 
       <div className="mt-4 flex items-baseline gap-3">
@@ -158,8 +138,7 @@ export function EquityChart({
         )}
         {!isPnl && hasData && <Pnl value={delta} className="text-sm" />}
         <span className="text-xs text-ink3">
-          {RANGE_LABELS.find((r) => r.value === range)?.label} ·{" "}
-          {scope === "total" ? "perp + spot" : "perp only"}
+          {RANGE_LABELS.find((r) => r.value === range)?.label} · perp account
         </span>
       </div>
 

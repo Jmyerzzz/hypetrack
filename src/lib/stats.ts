@@ -44,9 +44,9 @@ export type TradeStats = {
   pnlByCoin: CoinPnl[];
   /** Σ |px·sz| over perp fills in the window (both opens and closes). */
   perpVolume: number;
-  /** All USDC fees in the window (perp + spot + builder fees). */
+  /** All USDC fees over the supplied fills, builder fees included. */
   totalUsdcFees: number;
-  /** Non-USDC fee totals by token (spot fills can pay fees in the base token). */
+  /** Non-USDC fee totals by token, should any appear. */
   feesByToken: Record<string, number>;
   /** Σ of all funding events in the window; positive = received. */
   netFunding: number;

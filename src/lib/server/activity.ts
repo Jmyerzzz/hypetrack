@@ -34,7 +34,6 @@ function toFillView(f: HlFill, userAddress: string): FillView {
     tid: f.tid,
     time: f.time,
     coin: f.coin,
-    isSpot: isSpotCoin(f.coin),
     isBuy: f.side === "B",
     dir: f.dir,
     px: num(f.px),
@@ -133,7 +132,8 @@ function capSlices(trade: Trade): Trade {
 
 export async function buildActivity(address: string): Promise<ActivityPayload> {
   const fillsResult = await fetchAllFills(address);
-  const fills = fillsResult.records;
+  // Perp trading account only: spot-wallet fills are excluded everywhere.
+  const fills = fillsResult.records.filter((f) => !isSpotCoin(f.coin));
   const fillsFrom = fills[0]?.time ?? null;
   const fillsTo = fills[fills.length - 1]?.time ?? null;
 

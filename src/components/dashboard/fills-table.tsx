@@ -10,15 +10,13 @@ const PAGE = 50;
 export function FillsTable({
   fills,
   fillsTotal,
-  spotPairNames,
 }: {
   fills: FillView[];
   fillsTotal: number;
-  spotPairNames: Record<string, string> | undefined;
 }) {
   const [visible, setVisible] = useState(PAGE);
   if (fills.length === 0) {
-    return <EmptyState title="No fills in the loaded window" />;
+    return <EmptyState title="No perp fills in the loaded window" />;
   }
   const shown = fills.slice(0, visible);
 
@@ -49,14 +47,7 @@ export function FillsTable({
                   {fmtTime(f.time)}
                 </Td>
                 <Td align="left">
-                  <span className="font-medium text-ink">
-                    {f.isSpot ? (spotPairNames?.[f.coin] ?? f.coin) : f.coin}
-                  </span>
-                  {f.isSpot && (
-                    <span className="ml-1.5 rounded bg-panel2 px-1 py-0.5 text-[10px] text-ink3">
-                      SPOT
-                    </span>
-                  )}
+                  <span className="font-medium text-ink">{f.coin}</span>
                 </Td>
                 <Td align="left">
                   <span className={f.isBuy ? "text-upt" : "text-downt"}>

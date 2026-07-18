@@ -94,52 +94,6 @@ export type HlClearinghouseState = {
   time: number;
 };
 
-export type HlSpotBalance = {
-  coin: string;
-  token: number;
-  total: string;
-  hold: string;
-  entryNtl: string;
-};
-
-export type HlSpotClearinghouseState = {
-  balances: HlSpotBalance[];
-};
-
-export type HlSpotUniverseEntry = {
-  /** Pair name, e.g. "PURR/USDC" or "@1". */
-  name: string;
-  /** [baseTokenIndex, quoteTokenIndex] */
-  tokens: [number, number];
-  index: number;
-  isCanonical: boolean;
-};
-
-export type HlSpotToken = {
-  name: string;
-  szDecimals: number;
-  weiDecimals: number;
-  index: number;
-  tokenId: string;
-  isCanonical: boolean;
-};
-
-export type HlSpotMeta = {
-  universe: HlSpotUniverseEntry[];
-  tokens: HlSpotToken[];
-};
-
-export type HlSpotAssetCtx = {
-  coin: string;
-  markPx: string;
-  midPx: string | null;
-  prevDayPx: string;
-  dayNtlVlm: string;
-  circulatingSupply: string;
-};
-
-export type HlSpotMetaAndAssetCtxs = [HlSpotMeta, HlSpotAssetCtx[]];
-
 export type HlPortfolioPeriodData = {
   accountValueHistory: [number, string][];
   pnlHistory: [number, string][];
