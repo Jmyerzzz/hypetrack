@@ -13,12 +13,10 @@ import {
 } from "recharts";
 import { EmptyState, Pnl, SegmentedControl } from "@/components/ui";
 import type { PortfolioSeries } from "@/lib/api-types";
-import { fmtCompact, fmtPct, fmtTime, fmtUsd } from "@/lib/format";
-import { avgEquity } from "@/lib/risk";
+import { fmtCompact, fmtTime, fmtUsd } from "@/lib/format";
 
 type Range = "day" | "week" | "month" | "allTime";
 type Metric = "equity" | "pnl";
-type PnlUnit = "usd" | "pct";
 
 const RANGE_LABELS: { value: Range; label: string }[] = [
   { value: "day", label: "24H" },
@@ -34,37 +32,19 @@ function ChartTooltip({
   payload,
   metric,
   range,
-  unit,
 }: {
   active?: boolean;
   payload?: { payload: Point }[];
   metric: Metric;
   range: Range;
-  unit: PnlUnit;
 }) {
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
-  const isPct = metric === "pnl" && unit === "pct";
   return (
     <div className="rounded-lg border border-edge2 bg-panel2 px-3 py-2 shadow-xl">
       <p className="num text-sm font-semibold text-ink">
-        {metric === "pnl" ? (
-          isPct ? (
-            <span className={point.v >= 0 ? "text-upt" : "text-downt"}>
-              {fmtPct(point.v, { signed: true })}
-            </span>
-          ) : (
-            <Pnl value={point.usd} />
-          )
-        ) : (
-          fmtUsd(point.usd)
-        )}
+        {metric === "pnl" ? <Pnl value={point.usd} /> : fmtUsd(point.usd)}
       </p>
-      {isPct && (
-        <p className="num mt-0.5 text-[11px] text-ink2">
-          {fmtUsd(point.usd)} PnL
-        </p>
-      )}
       <p className="mt-0.5 text-[11px] text-ink3">
         {fmtTime(point.t, { withYear: range === "allTime" })}
       </p>
@@ -79,19 +59,9 @@ export function EquityChart({
 }) {
   const [metric, setMetric] = useState<Metric>("equity");
   const [range, setRange] = useState<Range>("month");
-  const [pnlUnit, setPnlUnit] = useState<PnlUnit>("usd");
 
   const series = portfolio[range];
   const isPnl = metric === "pnl";
-
-  // % basis: the window's time-averaged total equity — the same method as
-  // the stat-card % chips, so the curve's endpoint matches the chip.
-  const pctBase = useMemo(() => {
-    const avg = series ? avgEquity(series.combinedValue) : null;
-    return avg != null && avg >= 10 ? avg : null;
-  }, [series]);
-  const unit: PnlUnit = pnlUnit === "pct" && pctBase == null ? "usd" : pnlUnit;
-  const isPct = isPnl && unit === "pct";
 
   const data: Point[] = useMemo(() => {
     if (!series) return [];
@@ -108,13 +78,9 @@ export function EquityChart({
     const base = raw[0].v;
     return raw.map((p) => {
       const usd = p.v - base;
-      return {
-        t: p.t,
-        v: isPct && pctBase != null ? usd / pctBase : usd,
-        usd,
-      };
+      return { t: p.t, v: usd, usd };
     });
-  }, [series, isPnl, isPct, pctBase]);
+  }, [series, isPnl]);
 
   const { min, max, last } = useMemo(() => {
     if (data.length === 0) return { min: 0, max: 0, last: data[0] };
@@ -131,7 +97,16 @@ export function EquityChart({
   const zeroOffset = max <= 0 ? 0 : min >= 0 ? 1 : max / (max - min);
 
   const hasData = data.length > 1;
-  const delta = hasData ? data[data.length - 1].usd - data[0].usd : 0;
+  // Equity mode measures the window change from the first meaningfully
+  // funded sample, so a dust-value first tick doesn't yield a nonsense %.
+  const ref = !hasData
+    ? null
+    : isPnl
+      ? data[0]
+      : (data.find((p) => p.usd > 10) ?? data[0]);
+  const delta = hasData && ref ? data[data.length - 1].usd - ref.usd : 0;
+  const growthPct =
+    !isPnl && hasData && ref && ref.usd > 10 ? delta / ref.usd : null;
 
   const tickFormat = (t: number): string => {
     const d = new Date(t);
@@ -147,9 +122,7 @@ export function EquityChart({
   };
 
   const yTickFormat = (v: number): string =>
-    isPct
-      ? fmtPct(v, { signed: v < 0 })
-      : `${v < 0 ? "−" : ""}$${fmtCompact(Math.abs(v))}`;
+    `${v < 0 ? "−" : ""}$${fmtCompact(Math.abs(v))}`;
 
   return (
     <section className="card flex h-full flex-col p-4">
@@ -162,64 +135,33 @@ export function EquityChart({
           value={metric}
           onChange={setMetric}
         />
-        <div className="flex items-center gap-2">
-          {isPnl && (
-            <SegmentedControl
-              options={[
-                { value: "usd", label: "$" },
-                { value: "pct", label: "%" },
-              ]}
-              value={unit}
-              onChange={setPnlUnit}
-              size="xs"
-            />
-          )}
-          <SegmentedControl
-            options={RANGE_LABELS}
-            value={range}
-            onChange={setRange}
-            size="xs"
-          />
-        </div>
+        <SegmentedControl
+          options={RANGE_LABELS}
+          value={range}
+          onChange={setRange}
+          size="xs"
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         {isPnl ? (
-          isPct ? (
-            <span
-              className={`num text-2xl font-semibold tracking-tight ${
-                (last?.v ?? 0) >= 0 ? "text-upt" : "text-downt"
-              }`}
-            >
-              {fmtPct(last?.v ?? 0, { signed: true })}
-            </span>
-          ) : (
-            <Pnl
-              value={last?.usd ?? 0}
-              className="text-2xl font-semibold tracking-tight"
-            />
-          )
+          <Pnl
+            value={last?.usd ?? 0}
+            className="text-2xl font-semibold tracking-tight"
+          />
         ) : (
           <span className="num text-2xl font-semibold tracking-tight">
             {fmtUsd(last?.usd ?? 0)}
           </span>
         )}
-        {isPct && <Pnl value={last?.usd ?? 0} className="text-sm" />}
-        {!isPnl && hasData && <Pnl value={delta} className="text-sm" />}
-        <span
-          className="text-xs text-ink3"
-          title={
-            isPct
-              ? "Perp PnL as a percentage of the account's time-averaged total equity over this window — stable under deposits and withdrawals."
-              : undefined
-          }
-        >
+        {!isPnl && hasData && (
+          <span title="Change in total account value over this window, deposits and withdrawals included.">
+            <Pnl value={delta} pct={growthPct} className="text-sm" />
+          </span>
+        )}
+        <span className="text-xs text-ink3">
           {RANGE_LABELS.find((r) => r.value === range)?.label} ·{" "}
-          {isPnl
-            ? isPct
-              ? "perp PnL · % of avg equity"
-              : "perp PnL"
-            : "total equity"}
+          {isPnl ? "perp PnL" : "total equity"}
         </span>
       </div>
 
@@ -313,9 +255,7 @@ export function EquityChart({
                 />
               )}
               <Tooltip
-                content={
-                  <ChartTooltip metric={metric} range={range} unit={unit} />
-                }
+                content={<ChartTooltip metric={metric} range={range} />}
                 cursor={{ stroke: "var(--chart-cursor)", strokeWidth: 1 }}
               />
               <Area
