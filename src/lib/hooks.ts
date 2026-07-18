@@ -7,46 +7,25 @@ import type { ActivityPayload, OverviewPayload } from "./api-types";
 export type ViewMode = "table" | "cards";
 
 const VIEW_KEY = "hypesleuth:view";
-/** Tailwind's `sm` breakpoint — below it, tables need horizontal scrolling. */
-const TABLE_MIN_WIDTH = "(min-width: 640px)";
-
-function preferredMode(): ViewMode {
-  if (typeof window === "undefined") return "table";
-  return window.matchMedia(TABLE_MIN_WIDTH).matches ? "table" : "cards";
-}
+const DEFAULT_MODE: ViewMode = "cards";
 
 /**
- * Table/card view preference: cards on phones, tables on wider screens, until
- * the reader picks one — then that choice sticks across tabs and sessions.
- * These lists only render client-side (after the data query resolves), so the
- * viewport is known on first paint and there's no flash or hydration mismatch.
+ * Table/card view preference. Cards are the default at every width — they
+ * read better than a wide dense table, and the responsive grid keeps them
+ * from stretching on a desktop — until the reader picks a view, after which
+ * that choice sticks across tabs and sessions.
  */
 export function useViewMode(): [ViewMode, (mode: ViewMode) => void] {
   const [mode, setMode] = useState<ViewMode>(() => {
-    if (typeof window === "undefined") return "table";
+    if (typeof window === "undefined") return DEFAULT_MODE;
     try {
       const stored = window.localStorage.getItem(VIEW_KEY);
       if (stored === "table" || stored === "cards") return stored;
     } catch {
       /* private mode */
     }
-    return preferredMode();
+    return DEFAULT_MODE;
   });
-
-  // Follow rotation/resize until the reader expresses a preference.
-  useEffect(() => {
-    let explicit = false;
-    try {
-      explicit = window.localStorage.getItem(VIEW_KEY) != null;
-    } catch {
-      /* private mode */
-    }
-    if (explicit) return;
-    const mq = window.matchMedia(TABLE_MIN_WIDTH);
-    const onChange = () => setMode(mq.matches ? "table" : "cards");
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
 
   const choose = (next: ViewMode) => {
     setMode(next);
