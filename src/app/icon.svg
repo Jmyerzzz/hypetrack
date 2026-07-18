@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>HypeSleuth</title>
+  <rect width="64" height="64" rx="14" fill="#0c1215"/>
+  <rect width="63" height="63" x="0.5" y="0.5" rx="13.5" fill="none" stroke="rgba(151,252,228,0.25)"/>
+  <circle cx="27" cy="27" r="15" fill="none" stroke="#0ea5a0" stroke-width="5"/>
+  <path d="M38.5 38.5 L52 52" stroke="#0ea5a0" stroke-width="6" stroke-linecap="round"/>
+  <path d="M19 31 L24 25 L27.5 28 L35 19.5" fill="none" stroke="#2dd4bf" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 19 H35.5 V24.5" fill="none" stroke="#2dd4bf" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
