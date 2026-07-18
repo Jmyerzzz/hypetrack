@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #080d0f;
+  --color-panel: #0c1215;
+  --color-panel2: #111a1e;
+  --color-inset: #0a1013;
+  --color-edge: rgba(255, 255, 255, 0.07);
+  --color-edge2: rgba(255, 255, 255, 0.14);
+  --color-ink: #e6edee;
+  --color-ink2: #9db4b9;
+  --color-ink3: #64797f;
+  --color-grid: #162125;
+  --color-accent: #0ea5a0;
+  --color-accent2: #2dd4bf;
+  --color-mint: #97fce4;
+  --color-up: #30a46c;
+  --color-upt: #3dd68c;
+  --color-down: #e5484d;
+  --color-downt: #f0666b;
+  --color-warn: #f5a524;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(14, 165, 160, 0.35);
+}
+
+/* Numeric cells: monospace + tabular figures so columns align. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.card {
+  background: var(--color-panel);
+  border: 1px solid var(--color-edge);
+  border-radius: 0.875rem;
+}
+
+/* Recessive scrollbars for table overflow containers. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes shimmer {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+.skeleton {
+  animation: shimmer 1.6s ease-in-out infinite;
+  background: var(--color-panel2);
+  border-radius: 0.5rem;
+}
