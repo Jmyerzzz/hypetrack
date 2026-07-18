@@ -14,6 +14,7 @@ import {
 import { EmptyState, Pnl, SegmentedControl } from "@/components/ui";
 import type { PortfolioSeries } from "@/lib/api-types";
 import { fmtCompact, fmtPct, fmtTime, fmtUsd } from "@/lib/format";
+import { avgEquity } from "@/lib/risk";
 
 type Range = "day" | "week" | "month" | "allTime";
 type Metric = "equity" | "pnl";
@@ -27,24 +28,6 @@ const RANGE_LABELS: { value: Range; label: string }[] = [
 ];
 
 type Point = { t: number; v: number; usd: number };
-
-/**
- * Denominator for the % view of PnL: perp equity at the window start, or —
- * for all-time, where the account starts at zero — the peak capital ever
- * deployed (accountValue − pnl at each sample).
- */
-function pnlDenominator(series: PortfolioSeries, range: Range): number | null {
-  if (range !== "allTime") {
-    const start = series.accountValue.find((p) => p.v > 1)?.v;
-    return start != null && start > 1 ? start : null;
-  }
-  let peak = 0;
-  const n = Math.min(series.accountValue.length, series.pnl.length);
-  for (let i = 0; i < n; i++) {
-    peak = Math.max(peak, series.accountValue[i].v - series.pnl[i].v);
-  }
-  return peak > 1 ? peak : null;
-}
 
 function ChartTooltip({
   active,
@@ -101,12 +84,13 @@ export function EquityChart({
   const series = portfolio[range];
   const isPnl = metric === "pnl";
 
-  const denominator = useMemo(
-    () => (series ? pnlDenominator(series, range) : null),
-    [series, range],
-  );
-  const unit: PnlUnit =
-    pnlUnit === "pct" && denominator == null ? "usd" : pnlUnit;
+  // % basis: the window's time-averaged total equity — the same method as
+  // the stat-card % chips, so the curve's endpoint matches the chip.
+  const pctBase = useMemo(() => {
+    const avg = series ? avgEquity(series.combinedValue) : null;
+    return avg != null && avg >= 10 ? avg : null;
+  }, [series]);
+  const unit: PnlUnit = pnlUnit === "pct" && pctBase == null ? "usd" : pnlUnit;
   const isPct = isPnl && unit === "pct";
 
   const data: Point[] = useMemo(() => {
@@ -126,11 +110,11 @@ export function EquityChart({
       const usd = p.v - base;
       return {
         t: p.t,
-        v: isPct && denominator != null ? usd / denominator : usd,
+        v: isPct && pctBase != null ? usd / pctBase : usd,
         usd,
       };
     });
-  }, [series, isPnl, isPct, denominator]);
+  }, [series, isPnl, isPct, pctBase]);
 
   const { min, max, last } = useMemo(() => {
     if (data.length === 0) return { min: 0, max: 0, last: data[0] };
@@ -222,13 +206,18 @@ export function EquityChart({
         )}
         {isPct && <Pnl value={last?.usd ?? 0} className="text-sm" />}
         {!isPnl && hasData && <Pnl value={delta} className="text-sm" />}
-        <span className="text-xs text-ink3">
+        <span
+          className="text-xs text-ink3"
+          title={
+            isPct
+              ? "Perp PnL as a percentage of the account's time-averaged total equity over this window — stable under deposits and withdrawals."
+              : undefined
+          }
+        >
           {RANGE_LABELS.find((r) => r.value === range)?.label} ·{" "}
           {isPnl
             ? isPct
-              ? range === "allTime"
-                ? "perp PnL vs peak capital"
-                : "perp PnL vs starting equity"
+              ? "perp PnL · % of avg equity"
               : "perp PnL"
             : "total equity"}
         </span>

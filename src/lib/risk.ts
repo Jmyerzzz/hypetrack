@@ -20,15 +20,21 @@ const MIN_DAILY_SAMPLES = 8;
  * bucket samples by UTC day (last sample wins), then
  * r_d = ΔPnL_d / accountValue at the previous day's close. Using PnL deltas
  * rather than equity deltas keeps deposits/withdrawals out of the returns.
+ * The current (incomplete) UTC day is dropped — a partial day would enter
+ * the annualized mean/variance with full-day weight and deflate volatility.
  */
 export function dailyReturns(
   accountValue: PortfolioPoint[],
   pnl: PortfolioPoint[],
+  now: number = Date.now(),
 ): number[] {
+  const today = Math.floor(now / DAY_MS);
   const n = Math.min(accountValue.length, pnl.length);
   const byDay = new Map<number, { pnl: number; av: number }>();
   for (let i = 0; i < n; i++) {
-    byDay.set(Math.floor(pnl[i].t / DAY_MS), {
+    const day = Math.floor(pnl[i].t / DAY_MS);
+    if (day >= today) continue;
+    byDay.set(day, {
       pnl: pnl[i].v,
       av: accountValue[i].v,
     });
@@ -42,6 +48,53 @@ export function dailyReturns(
     returns.push((curr.pnl - prev.pnl) / prev.av);
   }
   return returns;
+}
+
+/**
+ * Time-weighted return (GIPS-style): per-sample trading returns compounded
+ * over the window, so deposits and withdrawals between samples don't distort
+ * the result. Each interval's return is ΔPnL over the account equity at the
+ * prior sample; intervals with ~no measurable capital (< $1) are skipped.
+ * Series are aligned by timestamp (Hyperliquid samples them together).
+ * Returns the cumulative curve; the last point is the window's return.
+ */
+/**
+ * Time-weighted average of an equity series over its window (trapezoid rule,
+ * so irregular sampling is handled). Null when the series is empty.
+ */
+export function avgEquity(equity: PortfolioPoint[]): number | null {
+  if (equity.length === 0) return null;
+  if (equity.length === 1) return equity[0].v;
+  let weighted = 0;
+  let span = 0;
+  for (let i = 1; i < equity.length; i++) {
+    const dt = equity[i].t - equity[i - 1].t;
+    if (dt <= 0) continue;
+    weighted += ((equity[i].v + equity[i - 1].v) / 2) * dt;
+    span += dt;
+  }
+  return span > 0 ? weighted / span : equity[equity.length - 1].v;
+}
+
+/** Ignore percent math on dust accounts — a % of a few dollars is noise. */
+const MIN_AVG_EQUITY = 10;
+
+/**
+ * Period return: PnL over the window divided by the time-averaged total
+ * equity in the window (Modified-Dietz-style "return on average capital").
+ * Chosen over compounded TWR deliberately: with sampled series, compounding
+ * explodes when early-window equity is near zero and breaks entirely when
+ * the two series are downsampled at different timestamps. This measure is
+ * stable, needs no alignment, and matches TWR when capital is steady.
+ */
+export function returnOnAvgEquity(
+  equity: PortfolioPoint[],
+  pnl: PortfolioPoint[],
+): number | null {
+  if (pnl.length < 2) return null;
+  const base = avgEquity(equity);
+  if (base == null || base < MIN_AVG_EQUITY) return null;
+  return (pnl[pnl.length - 1].v - pnl[0].v) / base;
 }
 
 export function sharpeSortino(returns: number[]): {

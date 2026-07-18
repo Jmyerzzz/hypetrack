@@ -16,7 +16,7 @@ import {
 } from "../hyperliquid/client";
 import { buildSpotTokenInfo, type SpotTokenInfo } from "../hyperliquid/spot";
 import type { HlOpenOrder, HlPortfolio } from "../hyperliquid/types";
-import { computeRiskMetrics } from "../risk";
+import { computeRiskMetrics, returnOnAvgEquity } from "../risk";
 import { isSpotCoin } from "../trades";
 
 const num = (s: string | number | null | undefined): number => {
@@ -64,21 +64,9 @@ function summarizePnl(
     const s = series[period];
     if (!s || s.pnl.length === 0) return { period, pnl: 0, pct: null };
     const pnl = s.pnl[s.pnl.length - 1].v - s.pnl[0].v;
-
-    let pct: number | null = null;
-    if (period === "allTime") {
-      // accountValue(t) = net transfers in(t) + pnl(t), so (av − pnl) peaks at
-      // the most capital ever deployed — a withdrawal-robust ROI denominator.
-      let peakCapital = 0;
-      const n = Math.min(s.accountValue.length, s.pnl.length);
-      for (let i = 0; i < n; i++) {
-        peakCapital = Math.max(peakCapital, s.accountValue[i].v - s.pnl[i].v);
-      }
-      if (peakCapital > 1) pct = pnl / peakCapital;
-    } else {
-      const start = s.accountValue.find((p) => p.v > 1)?.v ?? 0;
-      if (start > 1) pct = pnl / start;
-    }
+    // % = PnL over the window's time-averaged total equity — see risk.ts
+    // for why this beats compounded TWR on sampled series.
+    const pct = returnOnAvgEquity(s.combinedValue, s.pnl);
     return { period, pnl, pct };
   });
 }

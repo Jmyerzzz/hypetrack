@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { PortfolioPoint } from "./api-types";
 import { computeTradeExcursion, pickCandleInterval } from "./excursions";
 import type { HlCandle } from "./hyperliquid/types";
-import { dailyReturns, pnlMaxDrawdown, sharpeSortino } from "./risk";
+import {
+  dailyReturns,
+  pnlMaxDrawdown,
+  returnOnAvgEquity,
+  sharpeSortino,
+} from "./risk";
 import type { Trade } from "./trades";
 
 const DAY = 86_400_000;
@@ -196,5 +201,77 @@ describe("pickCandleInterval", () => {
     expect(pickCandleInterval(60 * DAY).interval).toBe("1h");
     expect(pickCandleInterval(400 * DAY).interval).toBe("4h");
     expect(pickCandleInterval(5000 * DAY).interval).toBe("1d");
+  });
+});
+
+describe("returnOnAvgEquity", () => {
+  it("divides window PnL by the time-averaged equity", () => {
+    // Equity holds 1000, then 3000 for equal time → avg 1750 (trapezoid:
+    // segments avg 1000, 2000, 3000 → (1000+2000+3000)/3).
+    const equity = series([1000, 1000, 3000, 3000]);
+    const pnl = series([0, 50, 50, 350]);
+    expect(returnOnAvgEquity(equity, pnl)).toBeCloseTo(350 / 2000);
+  });
+
+  it("is unaffected by a mid-window deposit", () => {
+    // Same PnL, but a deposit doubles equity halfway: the denominator grows,
+    // the % shrinks — it never explodes off a tiny starting base.
+    const flat = returnOnAvgEquity(
+      series([1000, 1000, 1000]),
+      series([0, 0, 100]),
+    );
+    const deposited = returnOnAvgEquity(
+      series([1000, 1000, 3000]),
+      series([0, 0, 100]),
+    );
+    expect(flat).toBeCloseTo(0.1);
+    expect(deposited as number).toBeLessThan(flat as number);
+    expect(deposited).toBeCloseTo(100 / 1500);
+  });
+
+  it("returns null for dust accounts and single samples", () => {
+    expect(returnOnAvgEquity(series([5, 5, 5]), series([0, 1, 2]))).toBeNull();
+    expect(returnOnAvgEquity(series([1000]), series([0]))).toBeNull();
+  });
+
+  it("handles irregular sampling via time weighting", () => {
+    // 1000 for 1 day, then 4000 for 3 days → avg = (1000·1 + wait — trapezoid
+    // across the jump: segment avgs 2500 (1d), 4000 (3d) → 3625.
+    const equity = [
+      { t: 0, v: 1000 },
+      { t: DAY, v: 4000 },
+      { t: 4 * DAY, v: 4000 },
+    ];
+    const pnl = [
+      { t: 0, v: 0 },
+      { t: DAY, v: 0 },
+      { t: 4 * DAY, v: 362.5 },
+    ];
+    expect(returnOnAvgEquity(equity, pnl)).toBeCloseTo(0.1);
+  });
+});
+
+describe("dailyReturns partial-day exclusion", () => {
+  it("drops the current incomplete UTC day", () => {
+    const t0 = 1_700_000_000_000;
+    const day0 = Math.floor(t0 / DAY) * DAY;
+    const HOUR = 3_600_000;
+    // Realistic sampling: last sample of each day lands late in the day.
+    const av = [
+      { t: day0 + 12 * HOUR, v: 1000 },
+      { t: day0 + DAY + 23 * HOUR, v: 1000 },
+      { t: day0 + 2 * DAY + 23 * HOUR, v: 1000 },
+      { t: day0 + 3 * DAY + 1 * HOUR, v: 1000 }, // 1h into "today"
+    ];
+    const pnl = [
+      { t: day0 + 12 * HOUR, v: 0 },
+      { t: day0 + DAY + 23 * HOUR, v: 10 },
+      { t: day0 + 2 * DAY + 23 * HOUR, v: 30 },
+      { t: day0 + 3 * DAY + 1 * HOUR, v: 31 },
+    ];
+    const now = day0 + 3 * DAY + 2 * HOUR;
+    const r = dailyReturns(av, pnl, now);
+    // Today's partial +1 must not appear; the two complete-day returns must.
+    expect(r).toEqual([0.01, 0.02]);
   });
 });

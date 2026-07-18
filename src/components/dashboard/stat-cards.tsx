@@ -30,6 +30,9 @@ function Card({
   );
 }
 
+const PCT_HINT =
+  "PnL over this window divided by the account's time-averaged total equity in the window — a Modified-Dietz-style return that stays stable under deposits and withdrawals.";
+
 function PctChip({ pct }: { pct: number | null }) {
   if (pct == null) return null;
   const tone =
@@ -40,6 +43,7 @@ function PctChip({ pct }: { pct: number | null }) {
         : "bg-panel2 text-ink2";
   return (
     <span
+      title={PCT_HINT}
       className={`num rounded-md px-1.5 py-0.5 text-xs font-semibold ${tone}`}
     >
       {fmtPct(pct, { signed: true })}
@@ -93,7 +97,7 @@ export function StatCards({
         label="All-time PnL"
         sub={
           overview ? (
-            "vs peak capital deployed"
+            <span title={PCT_HINT}>% of avg equity</span>
           ) : (
             <Skeleton className="h-4 w-24" />
           )
