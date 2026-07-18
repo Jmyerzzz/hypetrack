@@ -2,7 +2,10 @@
 
 import { Fragment, useMemo, useState } from "react";
 import {
+  CardField,
+  CardList,
   CoinTag,
+  DataCard,
   DirectionBadge,
   EmptyState,
   ExplorerLink,
@@ -10,6 +13,7 @@ import {
   ResultBadge,
   Td,
   Th,
+  ViewToggle,
 } from "@/components/ui";
 import {
   fmtDuration,
@@ -20,6 +24,7 @@ import {
   fmtTime,
   fmtUsd,
 } from "@/lib/format";
+import { useViewMode } from "@/lib/hooks";
 import type { Trade } from "@/lib/trades";
 
 type ResultFilter = "all" | "wins" | "losses" | "open" | "liquidated";
@@ -27,9 +32,23 @@ type DirFilter = "all" | "long" | "short";
 
 const PAGE = 30;
 
-function TradeDetail({ trade }: { trade: Trade }) {
+function TradeDetail({
+  trade,
+  inCard = false,
+}: {
+  trade: Trade;
+  inCard?: boolean;
+}) {
   return (
-    <div className="sticky left-0 max-w-[calc(100vw-2.5rem)] space-y-3 bg-inset px-4 py-4">
+    <div
+      className={
+        inCard
+          ? "space-y-3 pt-3"
+          : // In the table the panel spans a 1080px row inside a horizontal
+            // scroller, so pin it to the viewport to keep it readable.
+            "sticky left-0 max-w-[calc(100vw-2.5rem)] space-y-3 bg-inset px-4 py-4"
+      }
+    >
       <div className="grid gap-x-8 gap-y-2 text-[12px] sm:grid-cols-2 lg:grid-cols-4">
         <p className="flex justify-between gap-4 sm:block">
           <span className="text-ink3">Opened</span>
@@ -163,6 +182,136 @@ function TradeDetail({ trade }: { trade: Trade }) {
   );
 }
 
+/** Card counterpart of a trade row: PnL leads, supporting fields below. */
+function TradeCard({
+  trade,
+  isOpen,
+  onToggle,
+}: {
+  trade: Trade;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <DataCard active={isOpen}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        aria-controls={`trade-card-detail-${trade.id}`}
+        className="flex w-full items-start justify-between gap-3 text-left"
+      >
+        <span className="flex min-w-0 flex-col gap-1.5">
+          <CoinTag
+            coin={trade.coin}
+            sub={trade.truncated ? "partial history" : null}
+          />
+          <span className="flex flex-wrap items-center gap-1.5">
+            <DirectionBadge direction={trade.direction} />
+            <ResultBadge
+              isWin={trade.isWin}
+              status={trade.status}
+              liquidated={trade.liquidated}
+            />
+          </span>
+        </span>
+        <span className="flex shrink-0 flex-col items-end gap-0.5">
+          <Pnl
+            value={trade.netPnl}
+            pct={trade.netPnlPct}
+            className="text-[15px] font-semibold"
+          />
+          {trade.status === "open" && (
+            <span className="text-[10px] text-ink3">realized so far</span>
+          )}
+          <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-ink3">
+            {isOpen ? "Hide fills" : "Show fills"}
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className={`size-3 transition-transform ${isOpen ? "rotate-90" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <path
+                d="m9 6 6 6-6 6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </span>
+      </button>
+
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-edge pt-3">
+        <CardField label="Entry (avg)">
+          <span className="num">{fmtPrice(trade.avgEntryPx)}</span>
+        </CardField>
+        <CardField label="Exit (avg)" align="right">
+          <span className="num">{fmtPrice(trade.avgExitPx)}</span>
+        </CardField>
+        <CardField label="Max size">
+          <span className="num">{fmtSize(trade.maxSize)}</span>
+          {trade.avgEntryPx != null && (
+            <span className="num ml-1.5 text-[11px] text-ink3">
+              {fmtUsd(trade.maxSize * trade.avgEntryPx, { compact: true })}
+            </span>
+          )}
+        </CardField>
+        <CardField label="Held" align="right">
+          <span className="num">
+            {trade.status === "open" ? "open" : fmtDuration(trade.durationMs)}
+          </span>
+        </CardField>
+        <CardField label="Fees">
+          <span className="num text-ink2">{fmtUsd(trade.fees)}</span>
+        </CardField>
+        <CardField label="Funding" align="right">
+          <Pnl
+            value={trade.funding}
+            className="text-[13px]"
+            muted={trade.funding === 0}
+          />
+          {!trade.fundingCovered && (
+            <span
+              className="ml-0.5 align-super text-[10px] text-warn"
+              title="Partial funding data"
+            >
+              *
+            </span>
+          )}
+        </CardField>
+        <CardField label="Opened">
+          <span className="num text-ink2">
+            {trade.truncated ? "—" : fmtTime(trade.openedAt)}
+          </span>
+        </CardField>
+        {trade.excursion && (
+          <CardField label="MFE / MAE" align="right">
+            <span className="num text-upt">
+              +{fmtPct(trade.excursion.mfePct, { digits: 1 })}
+            </span>
+            <span className="mx-1 text-ink3">/</span>
+            <span className="num text-downt">
+              −{fmtPct(trade.excursion.maePct, { digits: 1 })}
+            </span>
+          </CardField>
+        )}
+      </div>
+
+      {isOpen && (
+        <div
+          id={`trade-card-detail-${trade.id}`}
+          className="mt-3 border-t border-edge"
+        >
+          <TradeDetail trade={trade} inCard />
+        </div>
+      )}
+    </DataCard>
+  );
+}
+
 export function TradesTable({
   trades,
   tradesTotal,
@@ -170,6 +319,7 @@ export function TradesTable({
   trades: Trade[];
   tradesTotal: number;
 }) {
+  const [view, setView] = useViewMode();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [coinFilter, setCoinFilter] = useState("all");
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
@@ -270,145 +420,163 @@ export function TradesTable({
         <span className="ml-auto text-xs text-ink3">
           {filtered.length} of {tradesTotal} trades
         </span>
+        <ViewToggle value={view} onChange={setView} />
       </div>
 
-      <div className="scroll-thin overflow-x-auto">
-        <table className="w-full min-w-[1080px] border-collapse">
-          <thead>
-            <tr className="border-b border-edge">
-              <Th align="left" className="w-8" />
-              <Th align="left">Market</Th>
-              <Th align="left">Side</Th>
-              <Th align="left">Result</Th>
-              <Th>Net PnL</Th>
-              <Th>Entry (avg)</Th>
-              <Th>Exit (avg)</Th>
-              <Th>Max size</Th>
-              <Th>Fees</Th>
-              <Th>Funding</Th>
-              <Th>Opened</Th>
-              <Th>Held</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((t) => {
-              const isOpen = expanded === t.id;
-              return (
-                <Fragment key={t.id}>
-                  <tr
-                    onClick={() => toggle(t.id)}
-                    className={`cursor-pointer border-b border-edge transition-colors ${
-                      isOpen ? "bg-panel2/60" : "hover:bg-panel2/40"
-                    }`}
-                  >
-                    <Td align="left">
-                      {/* The real control: clicking anywhere on the row also
+      {view === "cards" ? (
+        <CardList>
+          {shown.map((t) => (
+            <TradeCard
+              key={t.id}
+              trade={t}
+              isOpen={expanded === t.id}
+              onToggle={() => toggle(t.id)}
+            />
+          ))}
+        </CardList>
+      ) : (
+        <div className="scroll-thin overflow-x-auto">
+          <table className="w-full min-w-[1080px] border-collapse">
+            <thead>
+              <tr className="border-b border-edge">
+                <Th align="left" className="w-8" />
+                <Th align="left">Market</Th>
+                <Th align="left">Side</Th>
+                <Th align="left">Result</Th>
+                <Th>Net PnL</Th>
+                <Th>Entry (avg)</Th>
+                <Th>Exit (avg)</Th>
+                <Th>Max size</Th>
+                <Th>Fees</Th>
+                <Th>Funding</Th>
+                <Th>Opened</Th>
+                <Th>Held</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((t) => {
+                const isOpen = expanded === t.id;
+                return (
+                  <Fragment key={t.id}>
+                    <tr
+                      onClick={() => toggle(t.id)}
+                      className={`cursor-pointer border-b border-edge transition-colors ${
+                        isOpen ? "bg-panel2/60" : "hover:bg-panel2/40"
+                      }`}
+                    >
+                      <Td align="left">
+                        {/* The real control: clicking anywhere on the row also
                           toggles, but this keeps the disclosure reachable by
                           keyboard and announced to screen readers. */}
-                      <button
-                        type="button"
-                        aria-expanded={isOpen}
-                        aria-controls={`trade-detail-${t.id}`}
-                        aria-label={`${isOpen ? "Hide" : "Show"} fills for ${t.coin} ${t.direction} trade`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggle(t.id);
-                        }}
-                        className="flex items-center justify-center rounded p-1 text-ink3 transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
-                      >
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 24 24"
-                          className={`size-3.5 transition-transform ${isOpen ? "rotate-90" : ""}`}
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
+                        <button
+                          type="button"
+                          aria-expanded={isOpen}
+                          aria-controls={`trade-detail-${t.id}`}
+                          aria-label={`${isOpen ? "Hide" : "Show"} fills for ${t.coin} ${t.direction} trade`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggle(t.id);
+                          }}
+                          className="flex items-center justify-center rounded p-1 text-ink3 transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                         >
-                          <path
-                            d="m9 6 6 6-6 6"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    </Td>
-                    <Td align="left">
-                      <CoinTag
-                        coin={t.coin}
-                        sub={t.truncated ? "partial history" : null}
-                      />
-                    </Td>
-                    <Td align="left">
-                      <DirectionBadge direction={t.direction} />
-                    </Td>
-                    <Td align="left">
-                      <ResultBadge
-                        isWin={t.isWin}
-                        status={t.status}
-                        liquidated={t.liquidated}
-                      />
-                    </Td>
-                    <Td>
-                      <Pnl
-                        value={t.netPnl}
-                        pct={t.netPnlPct}
-                        className="text-[13px] font-medium"
-                      />
-                      {t.status === "open" && (
-                        <span className="block text-[10px] text-ink3">
-                          realized so far
-                        </span>
-                      )}
-                    </Td>
-                    <Td className="num">{fmtPrice(t.avgEntryPx)}</Td>
-                    <Td className="num">{fmtPrice(t.avgExitPx)}</Td>
-                    <Td>
-                      <span className="num block">{fmtSize(t.maxSize)}</span>
-                      {t.avgEntryPx != null && (
-                        <span className="num block text-[11px] text-ink3">
-                          {fmtUsd(t.maxSize * t.avgEntryPx, { compact: true })}
-                        </span>
-                      )}
-                    </Td>
-                    <Td className="num text-ink2">{fmtUsd(t.fees)}</Td>
-                    <Td>
-                      <Pnl
-                        value={t.funding}
-                        className="text-[13px]"
-                        muted={t.funding === 0}
-                      />
-                      {!t.fundingCovered && (
-                        <span
-                          className="ml-0.5 align-super text-[10px] text-warn"
-                          title="Partial funding data"
-                        >
-                          *
-                        </span>
-                      )}
-                    </Td>
-                    <Td className="num text-ink2">
-                      {t.truncated ? "—" : fmtTime(t.openedAt)}
-                    </Td>
-                    <Td className="num text-ink2">
-                      {t.status === "open" ? "open" : fmtDuration(t.durationMs)}
-                    </Td>
-                  </tr>
-                  {isOpen && (
-                    <tr
-                      id={`trade-detail-${t.id}`}
-                      className="border-b border-edge"
-                    >
-                      <td colSpan={12} className="p-0">
-                        <TradeDetail trade={t} />
-                      </td>
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            className={`size-3.5 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                          >
+                            <path
+                              d="m9 6 6 6-6 6"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                      </Td>
+                      <Td align="left">
+                        <CoinTag
+                          coin={t.coin}
+                          sub={t.truncated ? "partial history" : null}
+                        />
+                      </Td>
+                      <Td align="left">
+                        <DirectionBadge direction={t.direction} />
+                      </Td>
+                      <Td align="left">
+                        <ResultBadge
+                          isWin={t.isWin}
+                          status={t.status}
+                          liquidated={t.liquidated}
+                        />
+                      </Td>
+                      <Td>
+                        <Pnl
+                          value={t.netPnl}
+                          pct={t.netPnlPct}
+                          className="text-[13px] font-medium"
+                        />
+                        {t.status === "open" && (
+                          <span className="block text-[10px] text-ink3">
+                            realized so far
+                          </span>
+                        )}
+                      </Td>
+                      <Td className="num">{fmtPrice(t.avgEntryPx)}</Td>
+                      <Td className="num">{fmtPrice(t.avgExitPx)}</Td>
+                      <Td>
+                        <span className="num block">{fmtSize(t.maxSize)}</span>
+                        {t.avgEntryPx != null && (
+                          <span className="num block text-[11px] text-ink3">
+                            {fmtUsd(t.maxSize * t.avgEntryPx, {
+                              compact: true,
+                            })}
+                          </span>
+                        )}
+                      </Td>
+                      <Td className="num text-ink2">{fmtUsd(t.fees)}</Td>
+                      <Td>
+                        <Pnl
+                          value={t.funding}
+                          className="text-[13px]"
+                          muted={t.funding === 0}
+                        />
+                        {!t.fundingCovered && (
+                          <span
+                            className="ml-0.5 align-super text-[10px] text-warn"
+                            title="Partial funding data"
+                          >
+                            *
+                          </span>
+                        )}
+                      </Td>
+                      <Td className="num text-ink2">
+                        {t.truncated ? "—" : fmtTime(t.openedAt)}
+                      </Td>
+                      <Td className="num text-ink2">
+                        {t.status === "open"
+                          ? "open"
+                          : fmtDuration(t.durationMs)}
+                      </Td>
                     </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    {isOpen && (
+                      <tr
+                        id={`trade-detail-${t.id}`}
+                        className="border-b border-edge"
+                      >
+                        <td colSpan={12} className="p-0">
+                          <TradeDetail trade={t} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {visible < filtered.length && (
         <div className="border-t border-edge px-4 py-3 text-center">
