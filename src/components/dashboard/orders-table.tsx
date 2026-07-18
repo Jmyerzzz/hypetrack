@@ -95,7 +95,7 @@ export function OrdersTable({ orders }: { orders: OrderView[] | undefined }) {
       </div>
 
       {view === "cards" ? (
-        <CardList>
+        <CardList minWidth={280}>
           {orders.map((o) => (
             <OrderCard key={o.oid} o={o} />
           ))}

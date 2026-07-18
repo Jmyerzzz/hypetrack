@@ -282,22 +282,25 @@ export function ViewToggle({
 /**
  * One record rendered as a card; the card-view counterpart of a table row.
  * Intentionally non-interactive — cards that expand put a real <button>
- * inside so the control is focusable and announced.
+ * inside so the control is focusable and announced. `span` widens a card to
+ * the full grid row, which expanded cards need for their detail tables.
  */
 export function DataCard({
   children,
   active = false,
+  span = false,
   className = "",
 }: {
   children: React.ReactNode;
   active?: boolean;
+  span?: boolean;
   className?: string;
 }) {
   return (
     <div
       className={`rounded-xl border p-3 transition-colors ${
         active ? "border-edge2 bg-panel2/60" : "border-edge bg-panel2/25"
-      } ${className}`}
+      } ${span ? "col-span-full" : ""} ${className}`}
     >
       {children}
     </div>
@@ -326,9 +329,31 @@ export function CardField({
   );
 }
 
-/** Vertical stack of cards with consistent gutters. */
-export function CardList({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col gap-2.5 p-3">{children}</div>;
+/**
+ * Responsive card grid. Columns auto-fill to the available width rather than
+ * to fixed breakpoints, so cards stay a comfortable reading width instead of
+ * stretching across a wide desktop: one column on a phone, more as space
+ * allows. `minWidth` tunes the density per list — sparse cards pack tighter.
+ * The `min(...,100%)` guard keeps a single column from overflowing a narrow
+ * viewport.
+ */
+export function CardList({
+  children,
+  minWidth = 320,
+}: {
+  children: React.ReactNode;
+  minWidth?: number;
+}) {
+  return (
+    <div
+      className="grid items-start gap-2.5 p-3"
+      style={{
+        gridTemplateColumns: `repeat(auto-fill, minmax(min(${minWidth}px, 100%), 1fr))`,
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 export function SegmentedControl<T extends string>({

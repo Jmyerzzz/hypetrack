@@ -98,7 +98,7 @@ export function TransfersTable({
       </div>
 
       {view === "cards" ? (
-        <CardList>
+        <CardList minWidth={280}>
           {shown.map((t) => (
             <TransferCard key={key(t)} t={t} />
           ))}

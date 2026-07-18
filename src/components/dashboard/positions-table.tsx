@@ -84,7 +84,7 @@ export function PositionsTable({ positions }: { positions: PositionView[] }) {
       </div>
 
       {view === "cards" ? (
-        <CardList>
+        <CardList minWidth={320}>
           {positions.map((p) => (
             <PositionCard key={p.coin} p={p} />
           ))}

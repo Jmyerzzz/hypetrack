@@ -76,7 +76,7 @@ export function FundingTable({
       </div>
 
       {view === "cards" ? (
-        <CardList>
+        <CardList minWidth={260}>
           {shown.map((f) => (
             <FundingCard key={`${f.time}:${f.coin}`} f={f} />
           ))}

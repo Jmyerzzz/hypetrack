@@ -111,7 +111,7 @@ export function FillsTable({
       </div>
 
       {view === "cards" ? (
-        <CardList>
+        <CardList minWidth={300}>
           {shown.map((f) => (
             <FillCard key={f.tid} f={f} />
           ))}

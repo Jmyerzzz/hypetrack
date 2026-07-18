@@ -193,7 +193,8 @@ function TradeCard({
   onToggle: () => void;
 }) {
   return (
-    <DataCard active={isOpen}>
+    // Expanded cards take the whole row so the fill table has room to breathe.
+    <DataCard active={isOpen} span={isOpen}>
       <button
         type="button"
         onClick={onToggle}
@@ -424,7 +425,7 @@ export function TradesTable({
       </div>
 
       {view === "cards" ? (
-        <CardList>
+        <CardList minWidth={340}>
           {shown.map((t) => (
             <TradeCard
               key={t.id}
