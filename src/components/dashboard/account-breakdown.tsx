@@ -22,9 +22,17 @@ function Row({
 export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
   const leverage =
     overview.perpEquity > 0 ? overview.totalNtlPos / overview.perpEquity : null;
+  // Margin utilization is measured against TOTAL equity: on accounts running
+  // isolated positions, the perp-side balance IS the margin (free cash sits
+  // in spot USDC), so a perp-only ratio would always read a meaningless 100%.
   const marginRatio =
-    overview.perpEquity > 0 ? overview.marginUsed / overview.perpEquity : 0;
-  // Distance to liquidation risk: maintenance margin vs account value.
+    overview.totalEquity > 0 ? overview.marginUsed / overview.totalEquity : 0;
+  const freeCollateral = Math.max(
+    0,
+    overview.totalEquity - overview.marginUsed,
+  );
+  // Distance to liquidation risk for cross positions: maintenance vs the
+  // perp account value that backs them.
   const maintenanceRatio =
     overview.perpEquity > 0
       ? overview.maintenanceMarginUsed / overview.perpEquity
@@ -49,13 +57,16 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
             ? `${leverage.toFixed(2)}×`
             : "—"}
         </Row>
-        <div className="py-1.5">
+        <div
+          className="py-1.5"
+          title="USDC committed as position margin (isolated margin includes that position's unrealized PnL), as a share of your total equity. The remainder is free collateral you could add."
+        >
           <div className="flex items-center justify-between gap-3">
             <span className="text-[13px] text-ink2">Margin used</span>
             <span className="num text-[13px] text-ink">
               {fmtUsd(overview.marginUsed)}
               <span className="ml-1.5 text-ink3">
-                ({(marginRatio * 100).toFixed(1)}%)
+                ({(marginRatio * 100).toFixed(1)}% of equity)
               </span>
             </span>
           </div>
@@ -68,6 +79,7 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
             />
           </div>
         </div>
+        <Row label="Free collateral">{fmtUsd(freeCollateral)}</Row>
         <Row label="Cross maintenance margin">
           {fmtUsd(overview.maintenanceMarginUsed)}
           <span className="ml-1.5 text-ink3">
