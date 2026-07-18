@@ -206,6 +206,8 @@ export function TradesTable({
   );
 
   const shown = filtered.slice(0, visible);
+  const toggle = (id: string) =>
+    setExpanded((current) => (current === id ? null : id));
   const selectClass =
     "rounded-lg border border-edge bg-inset px-3 py-2 text-base text-ink2 focus:border-accent/60 focus:outline-none sm:px-2.5 sm:py-1.5 sm:text-xs";
 
@@ -294,26 +296,41 @@ export function TradesTable({
               return (
                 <Fragment key={t.id}>
                   <tr
-                    onClick={() => setExpanded(isOpen ? null : t.id)}
+                    onClick={() => toggle(t.id)}
                     className={`cursor-pointer border-b border-edge transition-colors ${
                       isOpen ? "bg-panel2/60" : "hover:bg-panel2/40"
                     }`}
                   >
                     <Td align="left">
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        className={`size-3.5 text-ink3 transition-transform ${isOpen ? "rotate-90" : ""}`}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
+                      {/* The real control: clicking anywhere on the row also
+                          toggles, but this keeps the disclosure reachable by
+                          keyboard and announced to screen readers. */}
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        aria-controls={`trade-detail-${t.id}`}
+                        aria-label={`${isOpen ? "Hide" : "Show"} fills for ${t.coin} ${t.direction} trade`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggle(t.id);
+                        }}
+                        className="flex items-center justify-center rounded p-1 text-ink3 transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                       >
-                        <path
-                          d="m9 6 6 6-6 6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          className={`size-3.5 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                        >
+                          <path
+                            d="m9 6 6 6-6 6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
                     </Td>
                     <Td align="left">
                       <CoinTag
@@ -377,7 +394,10 @@ export function TradesTable({
                     </Td>
                   </tr>
                   {isOpen && (
-                    <tr className="border-b border-edge">
+                    <tr
+                      id={`trade-detail-${t.id}`}
+                      className="border-b border-edge"
+                    >
                       <td colSpan={12} className="p-0">
                         <TradeDetail trade={t} />
                       </td>
