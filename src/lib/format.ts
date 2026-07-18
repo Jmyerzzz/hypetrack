@@ -135,6 +135,21 @@ export function fmtAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+/**
+ * Renders "gross − fees + funding" with each operator following its term's
+ * sign, so a maker rebate (negative fee) reads "+ $1.00" rather than the
+ * double-signed "− −$1.00". Funding is signed either way by nature.
+ */
+export function fmtNetPnlBreakdown(
+  grossPnl: number,
+  fees: number,
+  funding: number,
+): string {
+  const feeOp = fees >= 0 ? "−" : "+";
+  const fundOp = funding >= 0 ? "+" : "−";
+  return `${fmtUsdSigned(grossPnl)} ${feeOp} ${fmtUsd(Math.abs(fees))} ${fundOp} ${fmtUsd(Math.abs(funding))}`;
+}
+
 export const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
 export function isValidAddress(input: string): boolean {

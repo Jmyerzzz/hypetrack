@@ -24,6 +24,9 @@ const num = (s: string | number | null | undefined): number => {
   return Number.isFinite(v) ? v : 0;
 };
 
+/** USDC is always spot token 0 and is the perp collateral asset. */
+const USDC_TOKEN_INDEX = 0;
+
 /**
  * The tracker is scoped to the perp trading account, so the perp-only
  * portfolio series are exposed under the plain period keys.
@@ -115,20 +118,21 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
       getSpotTokenInfo(),
     ]);
 
-  const spotBalances = spotState.balances
-    .map((b) => {
-      const total = num(b.total);
-      const token = spotTokens[b.token];
-      const price = b.token === 0 ? 1 : (token?.price ?? null);
-      return {
-        coin: token?.name ?? b.coin,
-        total,
-        usdValue: price != null ? total * price : null,
-      };
-    })
-    .filter((b) => b.total > 0)
-    .sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
-  const spotValue = spotBalances.reduce((a, b) => a + (b.usdValue ?? 0), 0);
+  const rawSpotBalances = spotState.balances.map((b) => {
+    const total = num(b.total);
+    const token = spotTokens[b.token];
+    const price = b.token === USDC_TOKEN_INDEX ? 1 : (token?.price ?? null);
+    return {
+      token: b.token,
+      coin: token?.name ?? b.coin,
+      total,
+      usdValue: price != null ? total * price : null,
+    };
+  });
+  const rawSpotValue = rawSpotBalances.reduce(
+    (a, b) => a + (b.usdValue ?? 0),
+    0,
+  );
 
   const positions: PositionView[] = clearinghouse.assetPositions
     .map(({ position: p }) => {
@@ -167,14 +171,33 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
   const hlCombined = combinedHist.length
     ? num(combinedHist[combinedHist.length - 1][1])
     : 0;
-  const naiveSum = perpEquity + spotValue;
+  const naiveSum = perpEquity + rawSpotValue;
   let totalEquity = naiveSum;
+  let spotIncludesPerpCollateral = false;
   if (hlCombined > 0) {
     const overlap = naiveSum - hlCombined;
     if (Math.abs(overlap - perpEquity) < Math.abs(overlap)) {
-      totalEquity = spotValue;
+      totalEquity = rawSpotValue;
+      spotIncludesPerpCollateral = true;
     }
   }
+
+  // When the spot USDC balance carries the collateral posted to perps, net it
+  // out of the displayed USDC row too — otherwise the listed balances can't
+  // reconcile with the reported spot value.
+  const spotBalances = rawSpotBalances
+    .map((b) =>
+      spotIncludesPerpCollateral && b.token === USDC_TOKEN_INDEX
+        ? {
+            ...b,
+            total: Math.max(0, b.total - perpEquity),
+            usdValue: Math.max(0, (b.usdValue ?? 0) - perpEquity),
+          }
+        : b,
+    )
+    .filter((b) => b.total > 0)
+    .sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0))
+    .map(({ token: _token, ...view }) => view);
 
   return {
     address,

@@ -13,12 +13,12 @@ import {
 } from "@/components/ui";
 import {
   fmtDuration,
+  fmtNetPnlBreakdown,
   fmtPct,
   fmtPrice,
   fmtSize,
   fmtTime,
   fmtUsd,
-  fmtUsdSigned,
 } from "@/lib/format";
 import type { Trade } from "@/lib/trades";
 
@@ -54,8 +54,7 @@ function TradeDetail({ trade }: { trade: Trade }) {
         <p className="flex flex-wrap justify-between gap-x-4 gap-y-0.5 sm:block">
           <span className="text-ink3">Net = gross − fees + funding</span>
           <span className="num block text-right text-ink sm:text-left">
-            {fmtUsdSigned(trade.grossPnl)} − {fmtUsd(trade.fees)}{" "}
-            {trade.funding >= 0 ? "+" : "−"} {fmtUsd(Math.abs(trade.funding))}
+            {fmtNetPnlBreakdown(trade.grossPnl, trade.fees, trade.funding)}
           </span>
         </p>
         <p
