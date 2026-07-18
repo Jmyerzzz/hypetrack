@@ -138,7 +138,7 @@ export function Th({
 }) {
   return (
     <th
-      className={`whitespace-nowrap px-3 py-2.5 text-[11px] font-medium tracking-wide text-ink3 uppercase first:pl-4 last:pr-4 ${
+      className={`whitespace-nowrap px-3 py-2.5 text-[11px] font-medium tracking-wide text-ink3 uppercase first:pl-4 last:pr-4 max-sm:px-2 max-sm:first:pl-3 max-sm:last:pr-3 ${
         align === "left"
           ? "text-left"
           : align === "center"
@@ -165,7 +165,7 @@ export function Td({
   return (
     <td
       colSpan={colSpan}
-      className={`whitespace-nowrap px-3 py-2.5 text-[13px] first:pl-4 last:pr-4 ${
+      className={`whitespace-nowrap px-3 py-2.5 text-[13px] first:pl-4 last:pr-4 max-sm:px-2 max-sm:first:pl-3 max-sm:last:pr-3 ${
         align === "left"
           ? "text-left"
           : align === "center"
@@ -206,7 +206,9 @@ export function SegmentedControl<T extends string>({
           type="button"
           onClick={() => onChange(opt.value)}
           className={`rounded-md font-medium transition-colors ${
-            size === "xs" ? "px-2 py-1 text-[11px]" : "px-2.5 py-1 text-xs"
+            size === "xs"
+              ? "px-2 py-1 text-[11px] max-sm:px-2.5 max-sm:py-1.5"
+              : "px-2.5 py-1 text-xs max-sm:px-3 max-sm:py-2"
           } ${
             value === opt.value
               ? "bg-panel2 text-ink shadow-sm ring-1 ring-edge2"

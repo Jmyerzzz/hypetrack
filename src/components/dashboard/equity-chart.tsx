@@ -128,7 +128,7 @@ export function EquityChart({
         />
       </div>
 
-      <div className="mt-4 flex items-baseline gap-3">
+      <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         {isPnl ? (
           <Pnl value={last} className="text-2xl font-semibold tracking-tight" />
         ) : (
@@ -147,7 +147,7 @@ export function EquityChart({
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={data}
-              margin={{ top: 8, right: 0, bottom: 0, left: 8 }}
+              margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
             >
               <defs>
                 <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
@@ -222,7 +222,7 @@ export function EquityChart({
                 }}
                 tickLine={false}
                 axisLine={false}
-                width={72}
+                width={56}
               />
               {isPnl && min < 0 && max > 0 && (
                 <ReferenceLine

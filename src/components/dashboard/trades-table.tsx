@@ -28,7 +28,7 @@ const PAGE = 30;
 
 function TradeDetail({ trade }: { trade: Trade }) {
   return (
-    <div className="space-y-3 bg-inset px-4 py-4">
+    <div className="sticky left-0 max-w-[calc(100vw-2.5rem)] space-y-3 bg-inset px-4 py-4">
       <div className="grid gap-x-8 gap-y-2 text-[12px] sm:grid-cols-2 lg:grid-cols-4">
         <p className="flex justify-between gap-4 sm:block">
           <span className="text-ink3">Opened</span>
@@ -50,9 +50,9 @@ function TradeDetail({ trade }: { trade: Trade }) {
           <span className="text-ink3">Gross PnL (price only)</span>
           <Pnl value={trade.grossPnl} className="block text-[12px]" />
         </p>
-        <p className="flex justify-between gap-4 sm:block">
+        <p className="flex flex-wrap justify-between gap-x-4 gap-y-0.5 sm:block">
           <span className="text-ink3">Net = gross − fees + funding</span>
-          <span className="num block text-ink">
+          <span className="num block text-right text-ink sm:text-left">
             {fmtUsdSigned(trade.grossPnl)} − {fmtUsd(trade.fees)}{" "}
             {trade.funding >= 0 ? "+" : "−"} {fmtUsd(Math.abs(trade.funding))}
           </span>
@@ -175,7 +175,7 @@ export function TradesTable({
 
   const shown = filtered.slice(0, visible);
   const selectClass =
-    "rounded-lg border border-edge bg-inset px-2.5 py-1.5 text-xs text-ink2 focus:border-accent/60 focus:outline-none";
+    "rounded-lg border border-edge bg-inset px-3 py-2 text-base text-ink2 focus:border-accent/60 focus:outline-none sm:px-2.5 sm:py-1.5 sm:text-xs";
 
   if (trades.length === 0) {
     return (
@@ -363,7 +363,7 @@ export function TradesTable({
           <button
             type="button"
             onClick={() => setVisible((v) => v + PAGE)}
-            className="rounded-lg border border-edge bg-panel2 px-4 py-1.5 text-xs font-medium text-ink2 transition-colors hover:text-ink"
+            className="rounded-lg border border-edge bg-panel2 px-4 py-1.5 text-xs font-medium text-ink2 transition-colors hover:text-ink max-sm:w-full max-sm:py-2.5"
           >
             Show {Math.min(PAGE, filtered.length - visible)} more
           </button>

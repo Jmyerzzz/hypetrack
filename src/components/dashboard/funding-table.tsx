@@ -65,7 +65,7 @@ export function FundingTable({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between border-t border-edge px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-edge px-4 py-3">
         <span className="text-xs text-ink3">
           Showing {shown.length} of {funding.length} delivered · {fundingTotal}{" "}
           in window · positive = received
@@ -74,7 +74,7 @@ export function FundingTable({
           <button
             type="button"
             onClick={() => setVisible((v) => v + PAGE)}
-            className="rounded-lg border border-edge bg-panel2 px-4 py-1.5 text-xs font-medium text-ink2 transition-colors hover:text-ink"
+            className="rounded-lg border border-edge bg-panel2 px-4 py-1.5 text-xs font-medium text-ink2 transition-colors hover:text-ink max-sm:px-5 max-sm:py-2.5"
           >
             Show more
           </button>

@@ -22,7 +22,9 @@ function Card({
       <p className="text-[11px] font-medium tracking-wide text-ink3 uppercase">
         {label}
       </p>
-      <div className="text-xl leading-tight font-semibold">{children}</div>
+      <div className="text-lg leading-tight font-semibold sm:text-xl">
+        {children}
+      </div>
       {sub && <div className="text-xs text-ink3">{sub}</div>}
     </div>
   );
@@ -38,7 +40,7 @@ function PctChip({ pct }: { pct: number | null }) {
         : "bg-panel2 text-ink2";
   return (
     <span
-      className={`num ml-2 rounded-md px-1.5 py-0.5 align-middle text-xs font-semibold ${tone}`}
+      className={`num rounded-md px-1.5 py-0.5 text-xs font-semibold ${tone}`}
     >
       {fmtPct(pct, { signed: true })}
     </span>
@@ -98,7 +100,7 @@ export function StatCards({
         }
       >
         {allTime ? (
-          <span>
+          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <Pnl value={allTime.pnl} compact />
             <PctChip pct={allTime.pct} />
           </span>
@@ -120,7 +122,7 @@ export function StatCards({
         }
       >
         {month ? (
-          <span>
+          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <Pnl value={month.pnl} compact />
             <PctChip pct={month.pct} />
           </span>
@@ -197,15 +199,20 @@ export function StatCards({
         }
       >
         {stats ? (
-          <span className="flex flex-col gap-0.5 text-sm leading-snug">
+          <span className="flex flex-col gap-0.5 text-[13px] leading-snug sm:text-sm">
             <span className="num text-ink2">
               Fees{" "}
               <span className="text-downt">
-                {fmtUsdSigned(-stats.totalUsdcFees)}
+                {fmtUsdSigned(-stats.totalUsdcFees, { compact: true })}
               </span>
             </span>
             <span className="num text-ink2">
-              Fund <Pnl value={stats.netFunding} className="text-sm" />
+              Fund{" "}
+              <Pnl
+                value={stats.netFunding}
+                compact
+                className="text-[13px] sm:text-sm"
+              />
             </span>
           </span>
         ) : (

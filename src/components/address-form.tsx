@@ -24,7 +24,9 @@ export function AddressForm({ large = false }: { large?: boolean }) {
   };
 
   return (
-    <div className={large ? "w-full max-w-xl" : "w-full max-w-sm"}>
+    <div
+      className={large ? "w-full min-w-0 max-w-xl" : "w-full min-w-0 max-w-sm"}
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -53,15 +55,17 @@ export function AddressForm({ large = false }: { large?: boolean }) {
           placeholder="Wallet address (0x…)"
           spellCheck={false}
           autoComplete="off"
-          className={`num w-full bg-transparent text-ink placeholder:font-sans placeholder:text-ink3 focus:outline-none ${
-            large ? "text-base" : "text-sm"
+          className={`num w-full min-w-0 bg-transparent text-ink placeholder:font-sans placeholder:text-ink3 focus:outline-none ${
+            large ? "text-base" : "text-base sm:text-sm"
           }`}
         />
         <button
           type="submit"
           disabled={!valid}
           className={`shrink-0 rounded-lg bg-accent font-semibold text-bg transition-all hover:bg-accent2 disabled:cursor-not-allowed disabled:opacity-30 ${
-            large ? "px-4 py-2 text-sm" : "px-3 py-1.5 text-xs"
+            large
+              ? "px-4 py-2 text-sm max-sm:py-2.5"
+              : "px-3 py-1.5 text-xs max-sm:py-2"
           }`}
         >
           Track
@@ -80,7 +84,7 @@ export function AddressForm({ large = false }: { large?: boolean }) {
               key={address}
               type="button"
               onClick={() => go(address)}
-              className="num rounded-full border border-edge bg-panel px-3 py-1 text-xs text-ink2 transition-colors hover:border-accent/50 hover:text-accent2"
+              className="num rounded-full border border-edge bg-panel px-3 py-1.5 text-xs text-ink2 transition-colors hover:border-accent/50 hover:text-accent2 max-sm:px-3.5 max-sm:py-2"
             >
               {shortAddress(address)}
             </button>

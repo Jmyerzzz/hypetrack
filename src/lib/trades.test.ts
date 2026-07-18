@@ -469,3 +469,160 @@ describe("computeStats", () => {
     expect(stats.shorts.count).toBe(1);
   });
 });
+
+describe("execution-order reconstruction (real-wallet regression)", () => {
+  // 39 real HYPE fills from a production wallet. Within same-millisecond
+  // batches Hyperliquid's tids are NOT monotonic — sorting by tid used to
+  // scramble the position chain and split one short into a phantom long +
+  // short. The engine must reconstruct: two small May longs, one July long
+  // (88.59), and ONE unified short (154.5 opened, three partial profit-takes,
+  // fully closed).
+  const loadFixture = async (): Promise<HlFill[]> => {
+    const mod = await import("./__fixtures__/hype-fills.json");
+    return mod.default as unknown as HlFill[];
+  };
+
+  const verify = (trades: ReturnType<typeof groupTrades>) => {
+    expect(trades).toHaveLength(4);
+    expect(trades.every((t) => t.status === "closed")).toBe(true);
+    expect(trades.every((t) => !t.truncated)).toBe(true);
+    expect(trades.every((t) => t.isWin === true)).toBe(true);
+
+    // Most recent first: the unified short.
+    const short = trades[0];
+    expect(short.direction).toBe("short");
+    expect(short.maxSize).toBeCloseTo(154.5, 4);
+    expect(short.totalOpenedSz).toBeCloseTo(154.5, 4);
+    expect(short.totalClosedSz).toBeCloseTo(154.5, 4);
+    expect(short.avgEntryPx).toBeCloseTo(67.0596, 3);
+    expect(short.grossPnl).toBeCloseTo(714.7119, 3);
+    expect(short.fillCount).toBe(21);
+
+    const julyLong = trades[1];
+    expect(julyLong.direction).toBe("long");
+    expect(julyLong.maxSize).toBeCloseTo(88.59, 4);
+    expect(julyLong.grossPnl).toBeCloseTo(23.762512, 4);
+
+    expect(trades[2].grossPnl).toBeCloseTo(12.66508, 4);
+    expect(trades[3].grossPnl).toBeCloseTo(15.72471, 4);
+    const totalGross = trades.reduce((a, t) => a + t.grossPnl, 0);
+    expect(totalGross).toBeCloseTo(766.864202, 3);
+  };
+
+  it("groups correctly from API (execution) order", async () => {
+    verify(groupTrades(await loadFixture()));
+  });
+
+  it("groups correctly even when fed in tid-sorted order (the old bug)", async () => {
+    const scrambled = [...(await loadFixture())].sort((a, b) => a.tid - b.tid);
+    verify(groupTrades(scrambled));
+  });
+
+  it("groups correctly from reversed input order", async () => {
+    verify(groupTrades([...(await loadFixture())].reverse()));
+  });
+});
+
+describe("data-gap resync guard", () => {
+  it("flags a same-side gap as partial and keeps one trade", () => {
+    const trades = groupTrades([
+      fill({
+        coin: "ETH",
+        px: "2000",
+        sz: "1",
+        side: "B",
+        time: 1000,
+        startPosition: "0.0",
+      }),
+      // Gap: adds up to 5 are missing; close arrives with startPosition 5.
+      fill({
+        coin: "ETH",
+        px: "2100",
+        sz: "5",
+        side: "A",
+        time: 2000,
+        startPosition: "5.0",
+        closedPnl: "50.0",
+      }),
+    ]);
+    expect(trades).toHaveLength(1);
+    expect(trades[0].truncated).toBe(true);
+    expect(trades[0].status).toBe("closed");
+    expect(trades[0].maxSize).toBeCloseTo(5);
+    expect(trades[0].grossPnl).toBeCloseTo(50);
+  });
+
+  it("splits across a gap when the position side flipped", () => {
+    const trades = groupTrades([
+      fill({
+        coin: "ETH",
+        px: "2000",
+        sz: "1",
+        side: "B",
+        time: 1000,
+        startPosition: "0.0",
+      }),
+      // Gap: the long closed and a short of 3 opened while data is missing.
+      fill({
+        coin: "ETH",
+        px: "1900",
+        sz: "3",
+        side: "B",
+        time: 5000,
+        startPosition: "-3.0",
+        closedPnl: "30.0",
+      }),
+    ]);
+    expect(trades).toHaveLength(2);
+    const long = trades.find((t) => t.direction === "long");
+    const short = trades.find((t) => t.direction === "short");
+    expect(long?.truncated).toBe(true);
+    expect(long?.status).toBe("closed");
+    expect(short?.truncated).toBe(true);
+    expect(short?.status).toBe("closed");
+    expect(short?.grossPnl).toBeCloseTo(30);
+  });
+});
+
+describe("chain-head detection for a scrambled first group", () => {
+  it("finds the true chain start when a coin's first fills share one timestamp", () => {
+    // True execution order: 0→2 (open), 2→5 (add), 5→1 (partial close).
+    // Delivered scrambled, with the mid-chain add first.
+    const trades = groupTrades([
+      fill({
+        coin: "SOL",
+        px: "101",
+        sz: "3",
+        side: "B",
+        time: 500,
+        startPosition: "2.0",
+      }),
+      fill({
+        coin: "SOL",
+        px: "102",
+        sz: "4",
+        side: "A",
+        time: 500,
+        startPosition: "5.0",
+        closedPnl: "4.0",
+      }),
+      fill({
+        coin: "SOL",
+        px: "100",
+        sz: "2",
+        side: "B",
+        time: 500,
+        startPosition: "0.0",
+      }),
+    ]);
+    expect(trades).toHaveLength(1);
+    const t = trades[0];
+    expect(t.direction).toBe("long");
+    expect(t.truncated).toBe(false);
+    expect(t.status).toBe("open");
+    expect(t.totalOpenedSz).toBeCloseTo(5);
+    expect(t.totalClosedSz).toBeCloseTo(4);
+    expect(t.maxSize).toBeCloseTo(5);
+    expect(t.grossPnl).toBeCloseTo(4);
+  });
+});

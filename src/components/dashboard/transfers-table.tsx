@@ -28,8 +28,13 @@ export function TransfersTable({
     <div>
       <div className="border-b border-edge px-4 py-3 text-xs text-ink2">
         <span className="num">
-          Deposited {fmtUsdSigned(totalDeposited)} · Withdrawn{" "}
-          {fmtUsdSigned(-totalWithdrawn)}
+          <span className="whitespace-nowrap">
+            Deposited {fmtUsdSigned(totalDeposited)}
+          </span>
+          {" · "}
+          <span className="whitespace-nowrap">
+            Withdrawn {fmtUsdSigned(-totalWithdrawn)}
+          </span>
         </span>
       </div>
       <div className="scroll-thin overflow-x-auto">
@@ -96,7 +101,7 @@ export function TransfersTable({
           <button
             type="button"
             onClick={() => setVisible((v) => v + PAGE)}
-            className="rounded-lg border border-edge bg-panel2 px-4 py-1.5 text-xs font-medium text-ink2 transition-colors hover:text-ink"
+            className="rounded-lg border border-edge bg-panel2 px-4 py-1.5 text-xs font-medium text-ink2 transition-colors hover:text-ink max-sm:px-5 max-sm:py-2.5"
           >
             Show more
           </button>

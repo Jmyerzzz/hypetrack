@@ -66,7 +66,7 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
             />
           </div>
         </div>
-        <Row label="Maintenance margin">
+        <Row label="Cross maintenance margin">
           {fmtUsd(overview.maintenanceMarginUsed)}
           <span className="ml-1.5 text-ink3">
             ({(maintenanceRatio * 100).toFixed(1)}%)

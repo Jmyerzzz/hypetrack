@@ -45,7 +45,7 @@ export default function Home() {
           href="https://hyperliquid.xyz"
           target="_blank"
           rel="noreferrer"
-          className="text-xs text-ink3 transition-colors hover:text-ink2"
+          className="min-w-0 py-2 text-right text-xs text-ink3 transition-colors hover:text-ink2"
         >
           Powered by Hyperliquid public API
         </a>
@@ -76,7 +76,7 @@ export default function Home() {
               <Link
                 key={w.address}
                 href={`/a/${w.address}`}
-                className="rounded-full border border-edge bg-panel px-3 py-1 text-xs text-ink2 transition-colors hover:border-accent/50 hover:text-accent2"
+                className="rounded-full border border-edge bg-panel px-3 py-1 text-xs text-ink2 transition-colors hover:border-accent/50 hover:text-accent2 max-sm:px-3.5 max-sm:py-2"
               >
                 {w.label}
               </Link>

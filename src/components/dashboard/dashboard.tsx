@@ -29,13 +29,13 @@ function CopyButton({ text }: { text: string }) {
           /* clipboard unavailable */
         }
       }}
-      className="rounded-md p-1 text-ink3 transition-colors hover:bg-panel2 hover:text-ink"
+      className="rounded-md p-2 text-ink3 transition-colors hover:bg-panel2 hover:text-ink"
     >
       {copied ? (
         <svg
           aria-hidden="true"
           viewBox="0 0 24 24"
-          className="size-3.5 text-upt"
+          className="size-4 text-upt"
           fill="none"
           stroke="currentColor"
           strokeWidth="2.5"
@@ -50,7 +50,7 @@ function CopyButton({ text }: { text: string }) {
         <svg
           aria-hidden="true"
           viewBox="0 0 24 24"
-          className="size-3.5"
+          className="size-4"
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
@@ -98,7 +98,7 @@ export function Dashboard({ address }: { address: string }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-20 border-b border-edge bg-bg/85 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 py-3">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-5 py-3 sm:gap-4">
           <Logo />
           <AddressForm />
         </div>
@@ -117,12 +117,12 @@ export function Dashboard({ address }: { address: string }) {
               target="_blank"
               rel="noreferrer"
               title="View on Hyperliquid explorer"
-              className="rounded-md p-1 text-ink3 transition-colors hover:bg-panel2 hover:text-ink"
+              className="rounded-md p-2 text-ink3 transition-colors hover:bg-panel2 hover:text-ink"
             >
               <svg
                 aria-hidden="true"
                 viewBox="0 0 24 24"
-                className="size-3.5"
+                className="size-4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -147,7 +147,7 @@ export function Dashboard({ address }: { address: string }) {
               type="button"
               onClick={refreshAll}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-edge bg-panel px-2.5 py-1.5 text-xs font-medium text-ink2 transition-colors hover:border-edge2 hover:text-ink disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-edge bg-panel px-2.5 py-1.5 text-xs font-medium text-ink2 transition-colors hover:border-edge2 hover:text-ink disabled:opacity-60 max-sm:px-3 max-sm:py-2"
             >
               <svg
                 aria-hidden="true"

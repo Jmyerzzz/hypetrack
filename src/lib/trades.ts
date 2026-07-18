@@ -131,11 +131,67 @@ function finalizeAverages(t: MutableTrade): void {
   }
 }
 
+/** Tolerance when matching a fill's startPosition against the running position. */
+const CHAIN_EPS = 1e-6;
+
+const endPosition = (f: HlFill): number =>
+  num(f.startPosition) + (f.side === "B" ? num(f.sz) : -num(f.sz));
+
 /**
- * Groups perp fills (ascending by time) into position-lifecycle trades:
- * a trade opens when the position leaves zero and closes when it returns to
- * zero. A fill that flips the direction is split into a closing slice and an
- * opening slice of a new trade, with the fee prorated by size.
+ * Restores true execution order. Hyperliquid returns fills in execution order,
+ * but `tid` is NOT monotonic within a same-millisecond batch, so sorting by it
+ * scrambles the position chain (observed in production: a short's opening
+ * sells got reordered and misread as a long). Stable-sort by time only, then
+ * within each same-timestamp group follow the startPosition → endPosition
+ * chain, falling back to given order when the chain doesn't match (data gaps).
+ */
+function orderByExecution(fills: HlFill[]): HlFill[] {
+  const sorted = [...fills].sort((a, b) => a.time - b.time);
+  const out: HlFill[] = [];
+  let pos: number | null = null;
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j < sorted.length && sorted[j].time === sorted[i].time) j++;
+    const group = sorted.slice(i, j);
+    if (group.length === 1) {
+      out.push(group[0]);
+      pos = endPosition(group[0]);
+    } else {
+      if (pos === null) {
+        // No prior position known: the chain head is the fill whose start
+        // position is not any other group member's end position.
+        const head = group.find((f) =>
+          group.every(
+            (g) =>
+              g === f ||
+              Math.abs(endPosition(g) - num(f.startPosition)) >= CHAIN_EPS,
+          ),
+        );
+        pos = num((head ?? group[0]).startPosition);
+      }
+      while (group.length > 0) {
+        const want = pos as number;
+        let idx = group.findIndex(
+          (f) => Math.abs(num(f.startPosition) - want) < CHAIN_EPS,
+        );
+        if (idx === -1) idx = 0;
+        const fill = group.splice(idx, 1)[0];
+        out.push(fill);
+        pos = endPosition(fill);
+      }
+    }
+    i = j;
+  }
+  return out;
+}
+
+/**
+ * Groups perp fills into position-lifecycle trades: a trade opens when the
+ * position leaves zero and closes when it returns to zero. Scale-ins and
+ * partial profit-takes stay inside the same trade; a fill that flips the
+ * direction is split into a closing slice and an opening slice of a new trade,
+ * with the fee prorated by size.
  *
  * `userAddress` (lowercase) distinguishes being liquidated from being the
  * liquidator counterparty.
@@ -153,8 +209,9 @@ export function groupTrades(fills: HlFill[], userAddress?: string): Trade[] {
   let seq = 0;
 
   for (const [coin, coinFills] of byCoin) {
-    coinFills.sort((a, b) => a.time - b.time || a.tid - b.tid);
+    const ordered = orderByExecution(coinFills);
     let cur: MutableTrade | null = null;
+    let lastPos: number | null = null;
 
     const applySlice = (
       trade: MutableTrade,
@@ -200,7 +257,7 @@ export function groupTrades(fills: HlFill[], userAddress?: string): Trade[] {
       cur = null;
     };
 
-    for (const fill of coinFills) {
+    for (const fill of ordered) {
       const sz = num(fill.sz);
       if (sz <= 0) continue;
       const p0 = num(fill.startPosition);
@@ -215,6 +272,24 @@ export function groupTrades(fills: HlFill[], userAddress?: string): Trade[] {
         (!fill.liquidation.liquidatedUser ||
           !userAddress ||
           fill.liquidation.liquidatedUser.toLowerCase() === userAddress);
+
+      // A fill whose start position disagrees with the running position means
+      // fills are missing in between (API retention/pagination caps). Flag the
+      // open trade as partial; if the position side changed across the gap,
+      // end it at its last known fill and let a fresh trade begin below.
+      if (cur && lastPos !== null && Math.abs(p0 - lastPos) > CHAIN_EPS) {
+        cur.truncated = true;
+        const sameSide =
+          (cur.direction === "long" && p0 > POSITION_EPS) ||
+          (cur.direction === "short" && p0 < -POSITION_EPS);
+        if (sameSide) {
+          cur.maxSize = Math.max(cur.maxSize, Math.abs(p0));
+        } else {
+          const lastSliceTime = cur.slices[cur.slices.length - 1]?.time;
+          closeOut(cur, lastSliceTime ?? fill.time);
+        }
+      }
+      lastPos = p1;
 
       // The window can start mid-trade: synthesize a truncated open trade.
       if (!cur && Math.abs(p0) > POSITION_EPS) {

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export function Logo({ large = false }: { large?: boolean }) {
   return (
-    <Link href="/" className="group inline-flex items-center gap-2.5">
+    <Link href="/" className="group inline-flex shrink-0 items-center gap-2.5">
       <svg
         aria-hidden="true"
         viewBox="0 0 64 64"
@@ -39,7 +39,7 @@ export function Logo({ large = false }: { large?: boolean }) {
         <circle cx="44" cy="48" r="3.5" fill="#1e7d70" />
       </svg>
       <span
-        className={`font-semibold tracking-tight text-ink ${large ? "text-3xl" : "text-[17px]"}`}
+        className={`font-semibold tracking-tight text-ink ${large ? "text-3xl" : "text-[17px] max-sm:hidden"}`}
       >
         Hype<span className="text-accent2">Track</span>
       </span>
