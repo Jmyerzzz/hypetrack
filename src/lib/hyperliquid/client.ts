@@ -5,6 +5,8 @@ import type {
   HlLedgerUpdate,
   HlOpenOrder,
   HlPortfolio,
+  HlSpotClearinghouseState,
+  HlSpotMetaAndAssetCtxs,
 } from "./types";
 
 const API_URL = "https://api.hyperliquid.xyz/info";
@@ -152,6 +154,19 @@ export async function fetchClearinghouseState(
 
 export async function fetchPortfolio(user: string): Promise<HlPortfolio> {
   return hlInfo<HlPortfolio>({ type: "portfolio", user });
+}
+
+export async function fetchSpotClearinghouseState(
+  user: string,
+): Promise<HlSpotClearinghouseState> {
+  return hlInfo<HlSpotClearinghouseState>({
+    type: "spotClearinghouseState",
+    user,
+  });
+}
+
+export async function fetchSpotMetaAndAssetCtxs(): Promise<HlSpotMetaAndAssetCtxs> {
+  return hlInfo<HlSpotMetaAndAssetCtxs>({ type: "spotMetaAndAssetCtxs" });
 }
 
 export async function fetchOpenOrders(user: string): Promise<HlOpenOrder[]> {

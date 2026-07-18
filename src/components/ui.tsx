@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { fmtPct, fmtUsdSigned } from "@/lib/format";
 
 /** Signed USD amount in status color; sign carried by text as well as color. */
@@ -98,23 +99,51 @@ function coinHue(coin: string): number {
   return COIN_HUES[h % COIN_HUES.length];
 }
 
-/** Monogram tag for a market; builder-dex perps ("dex:COIN") show a dex chip. */
+/**
+ * Icon URL on Hyperliquid's own CDN. Works for regular coins ("BTC") and
+ * builder-dex markets ("xyz:CL") by raw name; k-prefixed 1000× markets
+ * (kPEPE) have no icon of their own, so they map to the base token's.
+ * Missing icons return an HTML page, which fires the <img> error handler.
+ */
+function coinIconUrl(coin: string): string {
+  const name = /^k[A-Z]/.test(coin) ? coin.slice(1) : coin;
+  return `https://app.hyperliquid.xyz/coins/${name}.svg`;
+}
+
+/** Asset tag for a market; falls back to a monogram when no icon exists. */
 export function CoinTag({ coin, sub }: { coin: string; sub?: string | null }) {
+  const [iconFailed, setIconFailed] = useState(false);
   const [dex, name] = coin.includes(":") ? coin.split(":", 2) : [null, coin];
   const display = name || coin;
   const hue = coinHue(display);
   return (
     <span className="inline-flex min-w-0 items-center gap-2">
-      <span
-        aria-hidden="true"
-        className="flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-        style={{
-          background: `oklch(0.32 0.055 ${hue})`,
-          color: `oklch(0.85 0.09 ${hue})`,
-        }}
-      >
-        {display.replace(/^k/, "").slice(0, 3).toUpperCase()}
-      </span>
+      {iconFailed ? (
+        <span
+          aria-hidden="true"
+          className="flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+          style={{
+            background: `oklch(0.32 0.055 ${hue})`,
+            color: `oklch(0.85 0.09 ${hue})`,
+          }}
+        >
+          {display.replace(/^k/, "").slice(0, 3).toUpperCase()}
+        </span>
+      ) : (
+        // Plain <img>: next/image can't optimize remote SVGs without
+        // dangerouslyAllowSVG, and the onError monogram fallback needs the
+        // native error event anyway.
+        // biome-ignore lint/performance/noImgElement: see above
+        <img
+          src={coinIconUrl(coin)}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setIconFailed(true)}
+          className="size-6 shrink-0 rounded-full bg-panel2 object-contain"
+        />
+      )}
       <span className="min-w-0">
         <span className="block truncate font-medium text-ink">{display}</span>
         {(dex || sub) && (

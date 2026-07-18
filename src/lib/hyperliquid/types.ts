@@ -94,6 +94,41 @@ export type HlClearinghouseState = {
   time: number;
 };
 
+export type HlSpotBalance = {
+  coin: string;
+  token: number;
+  total: string;
+  hold: string;
+  entryNtl: string;
+};
+
+export type HlSpotClearinghouseState = {
+  balances: HlSpotBalance[];
+};
+
+export type HlSpotMeta = {
+  universe: {
+    /** Pair name, e.g. "PURR/USDC" or "@1". */
+    name: string;
+    /** [baseTokenIndex, quoteTokenIndex] */
+    tokens: [number, number];
+    index: number;
+  }[];
+  tokens: {
+    name: string;
+    index: number;
+    szDecimals: number;
+  }[];
+};
+
+export type HlSpotAssetCtx = {
+  coin: string;
+  markPx: string;
+  midPx: string | null;
+};
+
+export type HlSpotMetaAndAssetCtxs = [HlSpotMeta, HlSpotAssetCtx[]];
+
 export type HlPortfolioPeriodData = {
   accountValueHistory: [number, string][];
   pnlHistory: [number, string][];

@@ -6,11 +6,15 @@ import type {
   PortfolioSeries,
   PositionView,
 } from "../api-types";
+import { cache } from "../cache";
 import {
   fetchClearinghouseState,
   fetchOpenOrders,
   fetchPortfolio,
+  fetchSpotClearinghouseState,
+  fetchSpotMetaAndAssetCtxs,
 } from "../hyperliquid/client";
+import { buildSpotTokenInfo, type SpotTokenInfo } from "../hyperliquid/spot";
 import type { HlOpenOrder, HlPortfolio } from "../hyperliquid/types";
 import { isSpotCoin } from "../trades";
 
@@ -103,12 +107,36 @@ function flattenOrders(orders: HlOpenOrder[]): OrderView[] {
   return out;
 }
 
+async function getSpotTokenInfo(): Promise<SpotTokenInfo> {
+  return cache.getOrLoad("spotTokenInfo", 5 * 60_000, async () =>
+    buildSpotTokenInfo(await fetchSpotMetaAndAssetCtxs()),
+  );
+}
+
 export async function buildOverview(address: string): Promise<OverviewPayload> {
-  const [clearinghouse, portfolio, openOrders] = await Promise.all([
-    fetchClearinghouseState(address),
-    fetchPortfolio(address),
-    fetchOpenOrders(address),
-  ]);
+  const [clearinghouse, portfolio, openOrders, spotState, spotTokens] =
+    await Promise.all([
+      fetchClearinghouseState(address),
+      fetchPortfolio(address),
+      fetchOpenOrders(address),
+      fetchSpotClearinghouseState(address),
+      getSpotTokenInfo(),
+    ]);
+
+  const spotBalances = spotState.balances
+    .map((b) => {
+      const total = num(b.total);
+      const token = spotTokens[b.token];
+      const price = b.token === 0 ? 1 : (token?.price ?? null);
+      return {
+        coin: token?.name ?? b.coin,
+        total,
+        usdValue: price != null ? total * price : null,
+      };
+    })
+    .filter((b) => b.total > 0)
+    .sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
+  const spotValue = spotBalances.reduce((a, b) => a + (b.usdValue ?? 0), 0);
 
   const positions: PositionView[] = clearinghouse.assetPositions
     .map(({ position: p }) => {
@@ -136,10 +164,34 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
 
   const series = toSeries(portfolio);
 
+  const perpEquity = num(clearinghouse.marginSummary.accountValue);
+
+  // On current Hyperliquid accounts the spot USDC balance already contains
+  // the USDC committed to perps (marked to perp equity), so summing perp +
+  // spot double-counts. Calibrate against Hyperliquid's own combined
+  // account-value series: if (perp + spot) overshoots it by ≈ perpEquity,
+  // the spot value is perp-inclusive and IS the total equity.
+  const combinedHist = new Map(portfolio).get("day")?.accountValueHistory ?? [];
+  const hlCombined = combinedHist.length
+    ? num(combinedHist[combinedHist.length - 1][1])
+    : 0;
+  const naiveSum = perpEquity + spotValue;
+  let totalEquity = naiveSum;
+  if (hlCombined > 0) {
+    const overlap = naiveSum - hlCombined;
+    if (Math.abs(overlap - perpEquity) < Math.abs(overlap)) {
+      totalEquity = spotValue;
+    }
+  }
+
   return {
     address,
     fetchedAt: Date.now(),
-    perpEquity: num(clearinghouse.marginSummary.accountValue),
+    perpEquity,
+    // Spot value excluding USDC committed to perps, so perp + spot = total.
+    spotValue: totalEquity - perpEquity,
+    totalEquity,
+    spotBalances: spotBalances.slice(0, 6),
     withdrawable: num(clearinghouse.withdrawable),
     marginUsed: num(clearinghouse.marginSummary.totalMarginUsed),
     totalNtlPos: num(clearinghouse.marginSummary.totalNtlPos),

@@ -62,13 +62,13 @@ export function StatCards({
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-7">
       <Card
-        label="Perp account value"
+        label="Total equity"
         className="col-span-2 sm:col-span-3 xl:col-span-2"
         sub={
           overview ? (
             <span className="num">
-              Withdrawable {fmtUsd(overview.withdrawable, { compact: true })} ·
-              Unrealized{" "}
+              Perp {fmtUsd(overview.perpEquity, { compact: true })} · Spot{" "}
+              {fmtUsd(overview.spotValue, { compact: true })} · Unrealized{" "}
               <Pnl
                 value={overview.totalUnrealizedPnl}
                 compact
@@ -82,7 +82,7 @@ export function StatCards({
       >
         {overview ? (
           <span className="text-[28px] tracking-tight">
-            {fmtUsd(overview.perpEquity)}
+            {fmtUsd(overview.totalEquity)}
           </span>
         ) : (
           <Skeleton className="h-8 w-40" />

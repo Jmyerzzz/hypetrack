@@ -2,7 +2,7 @@
 
 import { Pnl } from "@/components/ui";
 import type { OverviewPayload } from "@/lib/api-types";
-import { fmtUsd } from "@/lib/format";
+import { fmtCompact, fmtUsd } from "@/lib/format";
 
 function Row({
   label,
@@ -33,10 +33,12 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
   return (
     <section className="card p-4">
       <h2 className="text-[11px] font-medium tracking-wide text-ink3 uppercase">
-        Perp account breakdown
+        Account breakdown
       </h2>
       <div className="mt-2 divide-y divide-edge">
-        <Row label="Account value">{fmtUsd(overview.perpEquity)}</Row>
+        <Row label="Total equity">{fmtUsd(overview.totalEquity)}</Row>
+        <Row label="Perp equity">{fmtUsd(overview.perpEquity)}</Row>
+        <Row label="Spot value">{fmtUsd(overview.spotValue)}</Row>
         <Row label="Unrealized PnL">
           <Pnl value={overview.totalUnrealizedPnl} className="text-[13px]" />
         </Row>
@@ -73,6 +75,32 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
           </span>
         </Row>
       </div>
+
+      {overview.spotBalances.length > 0 && (
+        <div className="mt-3 border-t border-edge pt-3">
+          <h3 className="text-[11px] font-medium tracking-wide text-ink3 uppercase">
+            Spot balances
+          </h3>
+          <div className="mt-1">
+            {overview.spotBalances.map((b) => (
+              <div
+                key={b.coin}
+                className="flex items-center justify-between gap-3 py-1"
+              >
+                <span className="text-[13px] text-ink2">{b.coin}</span>
+                <span className="num text-[13px] text-ink">
+                  {fmtCompact(b.total)}
+                  <span className="ml-1.5 text-ink3">
+                    {b.usdValue != null
+                      ? fmtUsd(b.usdValue, { compact: true })
+                      : "—"}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -114,7 +114,7 @@ export function EquityChart({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SegmentedControl
           options={[
-            { value: "equity", label: "Account value" },
+            { value: "equity", label: "Perp equity" },
             { value: "pnl", label: "PnL" },
           ]}
           value={metric}

@@ -54,14 +54,25 @@ export type OrderView = {
   timestamp: number;
 };
 
+export type SpotBalanceView = {
+  coin: string;
+  total: number;
+  usdValue: number | null;
+};
+
 /**
- * Scoped to the Hyperliquid perp trading account — spot wallet holdings are
- * deliberately excluded from every value here.
+ * Total equity mirrors Hyperliquid's portfolio page (perp + spot value);
+ * trades, PnL series, and volume stay scoped to the perp trading account.
  */
 export type OverviewPayload = {
   address: string;
   fetchedAt: number;
   perpEquity: number;
+  /** Spot value excluding USDC committed to perps (perp + spot = total). */
+  spotValue: number;
+  /** Matches Hyperliquid's "Total Equity" (perp + spot, no double count). */
+  totalEquity: number;
+  spotBalances: SpotBalanceView[];
   withdrawable: number;
   marginUsed: number;
   totalNtlPos: number;
