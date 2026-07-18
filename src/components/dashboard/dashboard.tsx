@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AddressForm } from "@/components/address-form";
 import { Logo } from "@/components/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/ui";
 import { fmtAgo, shortAddress } from "@/lib/format";
 import { rememberAddress, useActivity, useOverview } from "@/lib/hooks";
@@ -12,6 +13,7 @@ import { ActivityTabs } from "./activity-tabs";
 import { EquityChart } from "./equity-chart";
 import { PnlByCoin } from "./pnl-by-coin";
 import { PositionsTable } from "./positions-table";
+import { RiskCard } from "./risk-card";
 import { StatCards } from "./stat-cards";
 
 function CopyButton({ text }: { text: string }) {
@@ -100,7 +102,10 @@ export function Dashboard({ address }: { address: string }) {
       <header className="sticky top-0 z-20 border-b border-edge bg-bg/85 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-5 py-3 sm:gap-4">
           <Logo />
-          <AddressForm />
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+            <AddressForm />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -180,7 +185,7 @@ export function Dashboard({ address }: { address: string }) {
             <button
               type="button"
               onClick={() => overview.refetch()}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg transition-colors hover:bg-accent2"
+              className="btn-accent rounded-lg px-4 py-2 text-sm font-semibold transition-all"
             >
               Retry
             </button>
@@ -209,6 +214,11 @@ export function Dashboard({ address }: { address: string }) {
                   <AccountBreakdown overview={overview.data} />
                 ) : (
                   <Skeleton className="h-[192px]" />
+                )}
+                {overview.data ? (
+                  <RiskCard risk={overview.data.risk} />
+                ) : (
+                  <Skeleton className="h-[140px]" />
                 )}
                 <PnlByCoin
                   activity={activity.data}

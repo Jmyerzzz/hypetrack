@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AddressForm } from "@/components/address-form";
 import { Logo } from "@/components/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const DEMO_WALLETS = [
   {
@@ -36,19 +37,22 @@ export default function Home() {
         className="pointer-events-none absolute inset-x-0 top-[-320px] h-[560px]"
         style={{
           background:
-            "radial-gradient(600px 320px at 50% 100%, rgba(45,212,191,0.13), transparent 70%)",
+            "radial-gradient(600px 320px at 50% 100%, var(--hero-glow), transparent 70%)",
         }}
       />
-      <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5">
+      <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-5 py-5">
         <Logo />
-        <a
-          href="https://hyperliquid.xyz"
-          target="_blank"
-          rel="noreferrer"
-          className="min-w-0 py-2 text-right text-xs text-ink3 transition-colors hover:text-ink2"
-        >
-          Powered by Hyperliquid public API
-        </a>
+        <div className="flex min-w-0 items-center gap-3">
+          <a
+            href="https://hyperliquid.xyz"
+            target="_blank"
+            rel="noreferrer"
+            className="min-w-0 py-2 text-right text-xs text-ink3 transition-colors hover:text-ink2 max-sm:hidden"
+          >
+            Powered by Hyperliquid public API
+          </a>
+          <ThemeToggle />
+        </div>
       </header>
 
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-5 pt-16 pb-20 sm:pt-24">
@@ -56,16 +60,17 @@ export default function Home() {
           Read-only · no keys · no sign-up
         </p>
         <h1 className="max-w-3xl text-center text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-          The complete picture of any{" "}
-          <span className="bg-gradient-to-r from-accent2 to-mint bg-clip-text text-transparent">
-            Hyperliquid
-          </span>{" "}
-          trading account
+          Every trade leaves a{" "}
+          <span className="bg-gradient-to-r from-accent2 to-mint bg-clip-text text-transparent italic">
+            trail
+          </span>
+          .
         </h1>
         <p className="mt-4 max-w-xl text-center text-base text-pretty text-ink2">
-          Paste a wallet address and get a full dashboard for its perp trading
-          account: PnL in dollars and percent, reconstructed trade history with
-          entries and exits, fees paid, and funding collected.
+          HypeSleuth reconstructs the full story of any Hyperliquid perp account
+          from just a wallet address: PnL in dollars and percent, every entry
+          and exit, fees paid, funding collected — with the receipts to prove
+          it.
         </p>
 
         <div className="mt-9 flex w-full flex-col items-center">
@@ -98,7 +103,7 @@ export default function Home() {
 
       <footer className="relative z-10 border-t border-edge py-5">
         <p className="mx-auto max-w-6xl px-5 text-center text-xs text-ink3">
-          HypeTrack reads public on-chain data from the Hyperliquid API. Not
+          HypeSleuth reads public on-chain data from the Hyperliquid API. Not
           affiliated with Hyperliquid. Nothing here is financial advice.
         </p>
       </footer>

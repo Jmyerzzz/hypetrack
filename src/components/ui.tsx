@@ -123,8 +123,8 @@ export function CoinTag({ coin, sub }: { coin: string; sub?: string | null }) {
           aria-hidden="true"
           className="flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
           style={{
-            background: `oklch(0.32 0.055 ${hue})`,
-            color: `oklch(0.85 0.09 ${hue})`,
+            background: `light-dark(oklch(0.88 0.06 ${hue}), oklch(0.32 0.055 ${hue}))`,
+            color: `light-dark(oklch(0.35 0.09 ${hue}), oklch(0.85 0.09 ${hue}))`,
           }}
         >
           {display.replace(/^k/, "").slice(0, 3).toUpperCase()}

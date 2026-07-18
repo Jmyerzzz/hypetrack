@@ -58,6 +58,16 @@ export type Trade = {
   slices: TradeSlice[];
   /** Set when the payload omitted middle slices of a very large trade. */
   slicesOmitted?: number;
+  /**
+   * Max favorable/adverse excursion, when candle data was available for the
+   * market. Null = not computable (no candles or unknown entry).
+   */
+  excursion?: {
+    mfePct: number;
+    maePct: number;
+    mfeUsd: number;
+    maeUsd: number;
+  } | null;
 };
 
 export function isSpotCoin(coin: string): boolean {

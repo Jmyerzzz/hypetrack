@@ -32,14 +32,17 @@ export function useActivity(address: string) {
   });
 }
 
-const RECENT_KEY = "hypetrack:recent";
+const RECENT_KEY = "hypesleuth:recent";
+const LEGACY_RECENT_KEY = "hypetrack:recent";
 
 export function readRecentAddresses(): string[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed: unknown = JSON.parse(
-      window.localStorage.getItem(RECENT_KEY) ?? "[]",
-    );
+    const raw =
+      window.localStorage.getItem(RECENT_KEY) ??
+      window.localStorage.getItem(LEGACY_RECENT_KEY) ??
+      "[]";
+    const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed)
       ? parsed.filter((x): x is string => typeof x === "string")
       : [];

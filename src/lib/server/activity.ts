@@ -4,12 +4,14 @@ import type {
   FundingView,
   TransferView,
 } from "../api-types";
+import { computeTradeExcursion, pickCandleInterval } from "../excursions";
 import {
   fetchAllFills,
+  fetchCandles,
   fetchFunding,
   fetchLedgerUpdates,
 } from "../hyperliquid/client";
-import type { HlFill, HlLedgerUpdate } from "../hyperliquid/types";
+import type { HlCandle, HlFill, HlLedgerUpdate } from "../hyperliquid/types";
 import { computeStats } from "../stats";
 import {
   attributeFunding,
@@ -23,6 +25,10 @@ const FILLS_PAYLOAD_CAP = 600;
 const FUNDING_PAYLOAD_CAP = 500;
 const TRANSFERS_PAYLOAD_CAP = 400;
 const SLICES_PER_TRADE_CAP = 60;
+/** Candle fetches for MFE/MAE are capped to the most recently traded markets. */
+const EXCURSION_COIN_CAP = 8;
+/** Candle requests go out in small batches to avoid rate-limit bursts. */
+const CANDLE_CONCURRENCY = 4;
 
 const num = (s: string | null | undefined): number => {
   const v = Number(s);
@@ -152,6 +158,43 @@ export async function buildActivity(address: string): Promise<ActivityPayload> {
       : (fundingEvents[fundingEvents.length - 1]?.time ?? fundingStart),
     events: fundingEvents,
   });
+
+  // MFE/MAE: one candle series per market (shared across its trades),
+  // most recently traded markets first.
+  if (fillsFrom != null) {
+    const now = Date.now();
+    const { interval, ms } = pickCandleInterval(now - fillsFrom);
+    const coins = [...new Set(trades.map((t) => t.coin))].slice(
+      0,
+      EXCURSION_COIN_CAP,
+    );
+    const candlePairs: [string, HlCandle[]][] = [];
+    for (let i = 0; i < coins.length; i += CANDLE_CONCURRENCY) {
+      const batch = await Promise.all(
+        coins
+          .slice(i, i + CANDLE_CONCURRENCY)
+          .map(async (coin): Promise<[string, HlCandle[]]> => {
+            try {
+              return [
+                coin,
+                await fetchCandles(coin, interval, fillsFrom - ms, now),
+              ];
+            } catch {
+              return [coin, []];
+            }
+          }),
+      );
+      candlePairs.push(...batch);
+    }
+    const candlesByCoin = new Map(candlePairs);
+    for (const trade of trades) {
+      const candles = candlesByCoin.get(trade.coin);
+      trade.excursion =
+        candles && candles.length > 0
+          ? computeTradeExcursion(trade, candles)
+          : null;
+    }
+  }
 
   const stats = computeStats(trades, fills, fundingEvents);
 

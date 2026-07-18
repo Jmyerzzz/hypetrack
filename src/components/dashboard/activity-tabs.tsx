@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Pnl, Skeleton } from "@/components/ui";
 import type { ActivityPayload, OrderView } from "@/lib/api-types";
-import { fmtDay, fmtDuration } from "@/lib/format";
+import { fmtDay, fmtDuration, fmtPct } from "@/lib/format";
 import { FillsTable } from "./fills-table";
 import { FundingTable } from "./funding-table";
 import { OrdersTable } from "./orders-table";
@@ -14,7 +14,7 @@ type Tab = "trades" | "fills" | "funding" | "transfers" | "orders";
 
 function PerformanceStrip({ activity }: { activity: ActivityPayload }) {
   const s = activity.stats;
-  const items: { label: string; node: React.ReactNode }[] = [
+  const items: { label: string; node: React.ReactNode; hint?: string }[] = [
     {
       label: "Profit factor",
       node: (
@@ -96,11 +96,35 @@ function PerformanceStrip({ activity }: { activity: ActivityPayload }) {
         </span>
       ),
     },
+    {
+      label: "Avg MFE",
+      hint: "Average maximum favorable excursion — how far closed trades ran in your favor before exit (candle data, recent markets).",
+      node:
+        s.avgMfePct == null ? (
+          <span className="text-ink3">—</span>
+        ) : (
+          <span className="num text-upt">
+            +{fmtPct(s.avgMfePct, { digits: 2 })}
+          </span>
+        ),
+    },
+    {
+      label: "Avg MAE",
+      hint: "Average maximum adverse excursion — how far closed trades moved against you before exit (candle data, recent markets).",
+      node:
+        s.avgMaePct == null ? (
+          <span className="text-ink3">—</span>
+        ) : (
+          <span className="num text-downt">
+            −{fmtPct(s.avgMaePct, { digits: 2 })}
+          </span>
+        ),
+    },
   ];
   return (
-    <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-b border-edge px-4 py-3.5 sm:grid-cols-4 lg:grid-cols-8">
+    <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-b border-edge px-4 py-3.5 sm:grid-cols-4 lg:grid-cols-5">
       {items.map((item) => (
-        <div key={item.label}>
+        <div key={item.label} title={item.hint}>
           <p className="text-[10px] font-medium tracking-wide text-ink3 uppercase">
             {item.label}
           </p>
@@ -213,7 +237,7 @@ export function ActivityTabs({
           <button
             type="button"
             onClick={onRetry}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-bg transition-colors hover:bg-accent2"
+            className="btn-accent rounded-lg px-4 py-2 text-sm font-semibold transition-all"
           >
             Retry
           </button>

@@ -1,19 +1,25 @@
-# HypeTrack
+# HypeSleuth
 
-A comprehensive portfolio tracker for [Hyperliquid](https://hyperliquid.xyz) trading
-accounts. Paste any wallet address — no keys, no sign-up — and get a full trading
-dashboard built from Hyperliquid's public info API.
+*Every trade leaves a trail.* HypeSleuth is account forensics for
+[Hyperliquid](https://hyperliquid.xyz): paste any wallet address — no keys, no
+sign-up — and get the full story of its perp trading account, built from
+Hyperliquid's public info API. Light and dark themes included.
 
-Scope: the **perp trading account** only. Spot wallet holdings are deliberately
-excluded from account value, PnL, volume, fills, and orders, so the numbers
-reflect trading performance rather than token bags.
+Scope: **total equity** mirrors Hyperliquid's portfolio page (perp + spot, with
+perp-committed USDC counted once); trades, PnL curves, volume, fills, and
+orders are scoped to the perp trading account.
 
 ## Features
 
 - **PnL in $ and %** — 24h / 7d / 30d / all-time, with an all-time % computed
   against peak capital deployed (robust to deposits and withdrawals).
-- **Equity & PnL charts** — account value and cumulative PnL curves per
-  timeframe, total or perp-only, with profit/loss split coloring around zero.
+- **Equity & PnL charts** — perp equity and cumulative PnL curves per
+  timeframe, with profit/loss split coloring around zero.
+- **Risk profile** — Sharpe and Sortino (annualized from 30 days of daily perp
+  PnL returns) and max drawdown of the all-time PnL curve.
+- **MFE / MAE** — each trade's maximum favorable and adverse excursion,
+  computed from candle data plus fill prices, with per-trade detail and
+  averages across closed trades.
 - **Reconstructed trade history** — raw fills are grouped into position
   lifecycles (open → add → reduce → close, including direction flips, which are
   split into two trades with prorated fees). Each trade shows entry/exit

@@ -52,6 +52,10 @@ export type TradeStats = {
   netFunding: number;
   fundingReceived: number;
   fundingPaid: number;
+  /** Mean MFE/MAE (fraction of entry) over closed trades with candle data. */
+  avgMfePct: number | null;
+  avgMaePct: number | null;
+  excursionSamples: number;
 };
 
 const num = (s: string | undefined | null): number => {
@@ -158,6 +162,16 @@ export function computeStats(
   const decided = wins + losses;
   const totalNetPnl = trades.reduce((a, t) => a + t.netPnl, 0);
 
+  const withExcursion = closed.filter((t) => t.excursion != null);
+  const avgMfePct = withExcursion.length
+    ? withExcursion.reduce((a, t) => a + (t.excursion?.mfePct ?? 0), 0) /
+      withExcursion.length
+    : null;
+  const avgMaePct = withExcursion.length
+    ? withExcursion.reduce((a, t) => a + (t.excursion?.maePct ?? 0), 0) /
+      withExcursion.length
+    : null;
+
   return {
     closedCount: closed.length,
     openCount: open.length,
@@ -186,5 +200,8 @@ export function computeStats(
     netFunding: fundingReceived + fundingPaid,
     fundingReceived,
     fundingPaid,
+    avgMfePct,
+    avgMaePct,
+    excursionSamples: withExcursion.length,
   };
 }

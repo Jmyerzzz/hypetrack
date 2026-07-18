@@ -142,7 +142,9 @@ export function EquityChart({
         </span>
       </div>
 
-      <div className="mt-3 h-[300px] flex-1">
+      {/* min-h (not h): flex-basis 0 from flex-1 would otherwise collapse
+          the plot to 0px when the card isn't stretched by the lg grid row. */}
+      <div className="mt-3 min-h-[260px] flex-1 sm:min-h-[300px]">
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
@@ -233,7 +235,7 @@ export function EquityChart({
               )}
               <Tooltip
                 content={<ChartTooltip metric={metric} range={range} />}
-                cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1 }}
+                cursor={{ stroke: "var(--chart-cursor)", strokeWidth: 1 }}
               />
               <Area
                 type="monotone"

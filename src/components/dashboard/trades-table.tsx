@@ -13,6 +13,7 @@ import {
 } from "@/components/ui";
 import {
   fmtDuration,
+  fmtPct,
   fmtPrice,
   fmtSize,
   fmtTime,
@@ -55,6 +56,38 @@ function TradeDetail({ trade }: { trade: Trade }) {
           <span className="num block text-right text-ink sm:text-left">
             {fmtUsdSigned(trade.grossPnl)} − {fmtUsd(trade.fees)}{" "}
             {trade.funding >= 0 ? "+" : "−"} {fmtUsd(Math.abs(trade.funding))}
+          </span>
+        </p>
+        <p
+          className="flex justify-between gap-4 sm:block"
+          title="Maximum favorable excursion: the best unrealized move while the trade was open (from candles + fills)"
+        >
+          <span className="text-ink3">MFE (best point)</span>
+          <span className="num block">
+            {trade.excursion ? (
+              <span className="text-upt">
+                +{fmtPct(trade.excursion.mfePct, { digits: 2 })} ·{" "}
+                {fmtUsd(trade.excursion.mfeUsd, { compact: true })}
+              </span>
+            ) : (
+              <span className="text-ink3">—</span>
+            )}
+          </span>
+        </p>
+        <p
+          className="flex justify-between gap-4 sm:block"
+          title="Maximum adverse excursion: the worst unrealized move while the trade was open (from candles + fills)"
+        >
+          <span className="text-ink3">MAE (worst point)</span>
+          <span className="num block">
+            {trade.excursion ? (
+              <span className="text-downt">
+                −{fmtPct(trade.excursion.maePct, { digits: 2 })} ·{" "}
+                {fmtUsd(trade.excursion.maeUsd, { compact: true })}
+              </span>
+            ) : (
+              <span className="text-ink3">—</span>
+            )}
           </span>
         </p>
       </div>

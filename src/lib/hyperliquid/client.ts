@@ -1,4 +1,5 @@
 import type {
+  HlCandle,
   HlClearinghouseState,
   HlFill,
   HlFundingEvent,
@@ -13,7 +14,7 @@ const API_URL = "https://api.hyperliquid.xyz/info";
 
 /** Pagination caps keep a single request bounded for hyper-active accounts. */
 export const MAX_FILL_PAGES = 15; // × 2000 fills
-export const MAX_FUNDING_PAGES = 20; // × 500 events
+export const MAX_FUNDING_PAGES = 12; // × 500 events
 export const MAX_LEDGER_PAGES = 4; // × ~2000 updates
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
@@ -167,6 +168,18 @@ export async function fetchSpotClearinghouseState(
 
 export async function fetchSpotMetaAndAssetCtxs(): Promise<HlSpotMetaAndAssetCtxs> {
   return hlInfo<HlSpotMetaAndAssetCtxs>({ type: "spotMetaAndAssetCtxs" });
+}
+
+export async function fetchCandles(
+  coin: string,
+  interval: string,
+  startTime: number,
+  endTime: number,
+): Promise<HlCandle[]> {
+  return hlInfo<HlCandle[]>({
+    type: "candleSnapshot",
+    req: { coin, interval, startTime, endTime },
+  });
 }
 
 export async function fetchOpenOrders(user: string): Promise<HlOpenOrder[]> {

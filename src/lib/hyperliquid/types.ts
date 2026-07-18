@@ -129,6 +129,17 @@ export type HlSpotAssetCtx = {
 
 export type HlSpotMetaAndAssetCtxs = [HlSpotMeta, HlSpotAssetCtx[]];
 
+export type HlCandle = {
+  /** Open time (ms). */
+  t: number;
+  /** Close time (ms). */
+  T: number;
+  o: string;
+  c: string;
+  h: string;
+  l: string;
+};
+
 export type HlPortfolioPeriodData = {
   accountValueHistory: [number, string][];
   pnlHistory: [number, string][];

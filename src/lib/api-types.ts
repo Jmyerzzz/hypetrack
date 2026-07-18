@@ -1,3 +1,4 @@
+import type { RiskMetrics } from "./risk";
 import type { TradeStats } from "./stats";
 import type { Trade } from "./trades";
 
@@ -85,6 +86,7 @@ export type OverviewPayload = {
   pnlSummary: PnlSummaryEntry[];
   /** Lifetime perp traded volume as reported by Hyperliquid. */
   allTimeVolume: number;
+  risk: RiskMetrics;
 };
 
 export type FillView = {

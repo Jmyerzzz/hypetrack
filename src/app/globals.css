@@ -1,42 +1,97 @@
 @import "tailwindcss";
 
-@theme {
-  --color-bg: #080d0f;
-  --color-panel: #0c1215;
-  --color-panel2: #111a1e;
-  --color-inset: #0a1013;
-  --color-edge: rgba(255, 255, 255, 0.07);
-  --color-edge2: rgba(255, 255, 255, 0.14);
-  --color-ink: #e6edee;
-  --color-ink2: #9db4b9;
-  --color-ink3: #64797f;
-  --color-grid: #162125;
-  --color-accent: #0ea5a0;
-  --color-accent2: #2dd4bf;
-  --color-mint: #97fce4;
-  --color-up: #30a46c;
-  --color-upt: #3dd68c;
-  --color-down: #e5484d;
-  --color-downt: #f0666b;
-  --color-warn: #f5a524;
+/* ── HypeSleuth theme tokens ─────────────────────────────────────────────
+   Dark is the default; light activates via <html data-theme="light">.
+   Chart colors are CVD-validated per surface (see README). */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #080d0f;
+  --panel: #0c1215;
+  --panel2: #111a1e;
+  --inset: #0a1013;
+  --edge: rgba(255, 255, 255, 0.07);
+  --edge2: rgba(255, 255, 255, 0.14);
+  --ink: #e6edee;
+  --ink2: #9db4b9;
+  --ink3: #64797f;
+  --grid: #162125;
+  --accent: #0ea5a0;
+  --accent2: #2dd4bf;
+  --mint: #97fce4;
+  --up: #30a46c;
+  --upt: #3dd68c;
+  --down: #e5484d;
+  --downt: #f0666b;
+  --warn: #f5a524;
+  --chart-cursor: rgba(255, 255, 255, 0.18);
+  --scrollbar: rgba(255, 255, 255, 0.12);
+  --dot: rgba(151, 252, 228, 0.05);
+  --hero-glow: rgba(45, 212, 191, 0.13);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f1f5f5;
+  --panel: #ffffff;
+  --panel2: #e8efef;
+  --inset: #f4f8f8;
+  --edge: rgba(13, 42, 47, 0.1);
+  --edge2: rgba(13, 42, 47, 0.2);
+  --ink: #14262b;
+  --ink2: #44606a;
+  --ink3: #64808a;
+  --grid: #e2eaea;
+  --accent: #0d9488;
+  --accent2: #0f766e;
+  --mint: #0d9488;
+  --up: #15803d;
+  --upt: #0f6f35;
+  --down: #b91c1c;
+  --downt: #a31a1f;
+  --warn: #b45309;
+  --chart-cursor: rgba(20, 38, 43, 0.28);
+  --scrollbar: rgba(20, 38, 43, 0.2);
+  --dot: rgba(13, 148, 136, 0.1);
+  --hero-glow: rgba(13, 148, 136, 0.1);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-inset: var(--inset);
+  --color-edge: var(--edge);
+  --color-edge2: var(--edge2);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-ink3: var(--ink3);
+  --color-grid: var(--grid);
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+  --color-mint: var(--mint);
+  --color-up: var(--up);
+  --color-upt: var(--upt);
+  --color-down: var(--down);
+  --color-downt: var(--downt);
+  --color-warn: var(--warn);
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
 }
 
-html {
-  color-scheme: dark;
-}
-
 body {
-  background: var(--color-bg);
-  color: var(--color-ink);
+  background-color: var(--bg);
+  /* The sleuth's graph paper: a faint dot grid over the page plane. */
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: 26px 26px;
+  color: var(--ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgba(14, 165, 160, 0.35);
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
 }
 
 /* Numeric cells: monospace + tabular figures so columns align. */
@@ -47,22 +102,54 @@ body {
 }
 
 .card {
-  background: var(--color-panel);
-  border: 1px solid var(--color-edge);
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--edge);
   border-radius: 0.875rem;
+}
+
+/* Signature detail: a hairline of accent light along each card's top edge. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 1px;
+  border-radius: 0.875rem 0.875rem 0 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--accent2) 55%, transparent),
+    transparent 55%
+  );
+  pointer-events: none;
+}
+
+/* Primary-action glow. */
+.glow-accent {
+  box-shadow: 0 0 18px color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+/* Primary accent button: dark ink on bright teal in dark mode, white on a
+   deeper teal in light mode — both clear WCAG AA for the label. */
+.btn-accent {
+  background: light-dark(var(--accent2), var(--accent));
+  color: light-dark(#ffffff, var(--bg));
+}
+.btn-accent:hover:not(:disabled) {
+  filter: brightness(1.12);
 }
 
 /* Recessive scrollbars for table overflow containers. */
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  scrollbar-color: var(--scrollbar) transparent;
 }
 .scroll-thin::-webkit-scrollbar {
   height: 8px;
   width: 8px;
 }
 .scroll-thin::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--scrollbar);
   border-radius: 4px;
 }
 .scroll-thin::-webkit-scrollbar-track {
@@ -82,6 +169,6 @@ body {
 }
 .skeleton {
   animation: shimmer 1.6s ease-in-out infinite;
-  background: var(--color-panel2);
+  background: var(--panel2);
   border-radius: 0.5rem;
 }

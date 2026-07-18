@@ -16,6 +16,7 @@ import {
 } from "../hyperliquid/client";
 import { buildSpotTokenInfo, type SpotTokenInfo } from "../hyperliquid/spot";
 import type { HlOpenOrder, HlPortfolio } from "../hyperliquid/types";
+import { computeRiskMetrics } from "../risk";
 import { isSpotCoin } from "../trades";
 
 const num = (s: string | number | null | undefined): number => {
@@ -202,5 +203,6 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     portfolio: series,
     pnlSummary: summarizePnl(series),
     allTimeVolume: series.allTime?.volume ?? 0,
+    risk: computeRiskMetrics(series.month, series.allTime),
   };
 }

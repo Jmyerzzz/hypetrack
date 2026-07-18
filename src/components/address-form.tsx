@@ -62,7 +62,7 @@ export function AddressForm({ large = false }: { large?: boolean }) {
         <button
           type="submit"
           disabled={!valid}
-          className={`shrink-0 rounded-lg bg-accent font-semibold text-bg transition-all hover:bg-accent2 disabled:cursor-not-allowed disabled:opacity-30 ${
+          className={`btn-accent glow-accent shrink-0 rounded-lg font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none ${
             large
               ? "px-4 py-2 text-sm max-sm:py-2.5"
               : "px-3 py-1.5 text-xs max-sm:py-2"
