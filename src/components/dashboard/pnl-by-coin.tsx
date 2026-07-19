@@ -1,6 +1,6 @@
 "use client";
 
-import { Skeleton } from "@/components/ui";
+import { marketName, Skeleton } from "@/components/ui";
 import type { ActivityPayload } from "@/lib/api-types";
 import { fmtUsdSigned } from "@/lib/format";
 
@@ -58,20 +58,23 @@ export function PnlByCoin({
       </div>
       {rows.length === 0 ? (
         <p className="mt-4 text-[13px] text-ink3">
-          No perp trades in the loaded window.
+          No trades in the loaded window.
         </p>
       ) : (
         <div className="mt-3 space-y-1.5">
           {rows.map((r) => {
             const positive = r.netPnl >= 0;
             const width = Math.max(2, (Math.abs(r.netPnl) / maxAbs) * 100);
+            // The label column is narrow, so an outcome market's full name
+            // lives in the tooltip and the row shows as much as it can.
+            const name = marketName(r.coin, activity.outcomeMarkets);
             return (
               <div
                 key={r.coin}
                 className="grid grid-cols-[72px_1fr_86px] items-center gap-2"
-                title={`${r.coin}: ${r.trades} trade${r.trades === 1 ? "" : "s"}`}
+                title={`${name}: ${r.trades} trade${r.trades === 1 ? "" : "s"}`}
               >
-                <span className="truncate text-[12px] text-ink2">{r.coin}</span>
+                <span className="truncate text-[12px] text-ink2">{name}</span>
                 <span className="relative block h-2">
                   <span
                     aria-hidden="true"

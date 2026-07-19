@@ -1,5 +1,6 @@
 import type {
   OrderView,
+  OutcomePositionView,
   OverviewPayload,
   PeriodKey,
   PnlSummaryEntry,
@@ -14,10 +15,21 @@ import {
   fetchSpotClearinghouseState,
   fetchSpotMetaAndAssetCtxs,
 } from "../hyperliquid/client";
+import {
+  describeOutcomeCoins,
+  isOutcomeCoin,
+  toMarketCoin,
+} from "../hyperliquid/outcome";
 import { buildSpotTokenInfo, type SpotTokenInfo } from "../hyperliquid/spot";
-import type { HlOpenOrder, HlPortfolio } from "../hyperliquid/types";
+import type {
+  HlAllMids,
+  HlOpenOrder,
+  HlPortfolio,
+  HlSpotBalance,
+} from "../hyperliquid/types";
 import { computeRiskMetrics, returnOnAvgEquity } from "../risk";
 import { isSpotCoin } from "../trades";
+import { getAllMids, getOutcomeIndex } from "./markets";
 
 const num = (s: string | number | null | undefined): number => {
   const v = Number(s);
@@ -108,27 +120,91 @@ async function getSpotTokenInfo(): Promise<SpotTokenInfo> {
   );
 }
 
-export async function buildOverview(address: string): Promise<OverviewPayload> {
-  const [clearinghouse, portfolio, openOrders, spotState, spotTokens] =
-    await Promise.all([
-      fetchClearinghouseState(address),
-      fetchPortfolio(address),
-      fetchOpenOrders(address),
-      fetchSpotClearinghouseState(address),
-      getSpotTokenInfo(),
-    ]);
+/**
+ * Open outcome-market positions, priced off the live book. Balances are plain
+ * token holdings — always long, and worth $1 each if the side wins.
+ */
+function toOutcomePositions(
+  balances: HlSpotBalance[],
+  mids: HlAllMids,
+): OutcomePositionView[] {
+  const positions: OutcomePositionView[] = [];
+  for (const balance of balances) {
+    const size = num(balance.total);
+    if (size <= 0) continue;
+    const coin = toMarketCoin(balance.coin);
+    const mid = Number(mids[coin]);
+    const markPx = Number.isFinite(mid) ? mid : null;
+    const entryNotional = num(balance.entryNtl);
+    const positionValue = markPx == null ? null : size * markPx;
+    const unrealizedPnl =
+      positionValue == null ? null : positionValue - entryNotional;
+    positions.push({
+      coin,
+      size,
+      hold: num(balance.hold),
+      entryNotional,
+      avgEntryPx: entryNotional / size,
+      markPx,
+      positionValue,
+      unrealizedPnl,
+      roe:
+        unrealizedPnl != null && entryNotional > 0
+          ? unrealizedPnl / entryNotional
+          : null,
+      // Each winning side token redeems for exactly $1 at settlement.
+      payoutIfWon: size,
+    });
+  }
+  return positions.sort(
+    (a, b) => (b.positionValue ?? 0) - (a.positionValue ?? 0),
+  );
+}
 
-  const rawSpotBalances = spotState.balances.map((b) => {
-    const total = num(b.total);
-    const token = spotTokens[b.token];
-    const price = b.token === USDC_TOKEN_INDEX ? 1 : (token?.price ?? null);
-    return {
-      token: b.token,
-      coin: token?.name ?? b.coin,
-      total,
-      usdValue: price != null ? total * price : null,
-    };
-  });
+export async function buildOverview(address: string): Promise<OverviewPayload> {
+  const [
+    clearinghouse,
+    portfolio,
+    openOrders,
+    spotState,
+    spotTokens,
+    mids,
+    outcomeIndex,
+  ] = await Promise.all([
+    fetchClearinghouseState(address),
+    fetchPortfolio(address),
+    fetchOpenOrders(address),
+    fetchSpotClearinghouseState(address),
+    getSpotTokenInfo(),
+    getAllMids(),
+    getOutcomeIndex(),
+  ]);
+
+  // HIP-4 outcome sides ride along in the spot balance list as `+8560`, but
+  // they are a separate asset class: priced off their own book, not the spot
+  // token universe, and surfaced in their own section.
+  const outcomePositions = toOutcomePositions(
+    spotState.balances.filter((b) => isOutcomeCoin(b.coin)),
+    mids,
+  );
+  const outcomeValue = outcomePositions.reduce(
+    (a, p) => a + (p.positionValue ?? 0),
+    0,
+  );
+
+  const rawSpotBalances = spotState.balances
+    .filter((b) => !isOutcomeCoin(b.coin))
+    .map((b) => {
+      const total = num(b.total);
+      const token = b.token == null ? undefined : spotTokens[b.token];
+      const price = b.token === USDC_TOKEN_INDEX ? 1 : (token?.price ?? null);
+      return {
+        token: b.token,
+        coin: token?.name ?? b.coin,
+        total,
+        usdValue: price != null ? total * price : null,
+      };
+    });
   const rawSpotValue = rawSpotBalances.reduce(
     (a, b) => a + (b.usdValue ?? 0),
     0,
@@ -171,13 +247,17 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
   const hlCombined = combinedHist.length
     ? num(combinedHist[combinedHist.length - 1][1])
     : 0;
-  const naiveSum = perpEquity + rawSpotValue;
+  // Outcome holdings count toward the value Hyperliquid charts, so they belong
+  // in the sum being calibrated — omitting them would read as an overlap and
+  // understate total equity by the whole outcome book.
+  const nonPerpValue = rawSpotValue + outcomeValue;
+  const naiveSum = perpEquity + nonPerpValue;
   let totalEquity = naiveSum;
   let spotIncludesPerpCollateral = false;
   if (hlCombined > 0) {
     const overlap = naiveSum - hlCombined;
     if (Math.abs(overlap - perpEquity) < Math.abs(overlap)) {
-      totalEquity = rawSpotValue;
+      totalEquity = nonPerpValue;
       spotIncludesPerpCollateral = true;
     }
   }
@@ -199,21 +279,33 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     .sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0))
     .map(({ token: _token, ...view }) => view);
 
+  const flatOrders = flattenOrders(openOrders);
+
   return {
     address,
     fetchedAt: Date.now(),
     perpEquity,
-    // Spot value excluding USDC committed to perps, so perp + spot = total.
-    spotValue: totalEquity - perpEquity,
+    // Spot value excluding USDC committed to perps, so the three parts sum to
+    // total: perp + spot + outcome.
+    spotValue: totalEquity - perpEquity - outcomeValue,
     totalEquity,
     spotBalances: spotBalances.slice(0, 6),
+    outcomePositions,
+    outcomeValue,
+    outcomeMarkets: describeOutcomeCoins(
+      [
+        ...outcomePositions.map((p) => p.coin),
+        ...flatOrders.map((o) => o.coin),
+      ],
+      outcomeIndex,
+    ),
     withdrawable: num(clearinghouse.withdrawable),
     marginUsed: num(clearinghouse.marginSummary.totalMarginUsed),
     totalNtlPos: num(clearinghouse.marginSummary.totalNtlPos),
     maintenanceMarginUsed: num(clearinghouse.crossMaintenanceMarginUsed),
     totalUnrealizedPnl: positions.reduce((a, p) => a + p.unrealizedPnl, 0),
     positions,
-    openOrders: flattenOrders(openOrders),
+    openOrders: flatOrders,
     portfolio: series,
     pnlSummary: summarizePnl(series),
     allTimeVolume: series.allTime?.volume ?? 0,

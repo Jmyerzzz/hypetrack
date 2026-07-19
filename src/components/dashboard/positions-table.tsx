@@ -21,7 +21,11 @@ function PositionCard({ p }: { p: PositionView }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1.5">
           <CoinTag coin={p.coin} sub={`${p.leverage}× ${p.leverageType}`} />
-          <DirectionBadge direction={p.direction} />
+          {/* Row wrapper so the badge sizes to its label; stretching it is the
+              flex-column default, and min-w-0 above still truncates the name. */}
+          <span className="flex">
+            <DirectionBadge direction={p.direction} />
+          </span>
         </div>
         <div className="shrink-0 text-right">
           <Pnl

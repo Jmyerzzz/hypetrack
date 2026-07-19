@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Pnl, Skeleton } from "@/components/ui";
-import type { ActivityPayload, OrderView } from "@/lib/api-types";
-import { fmtDay, fmtDuration, fmtPct } from "@/lib/format";
+import { marketName, Pnl, Skeleton } from "@/components/ui";
+import type {
+  ActivityPayload,
+  OrderView,
+  OutcomeMarketMap,
+} from "@/lib/api-types";
+import { fmtDay, fmtDuration, fmtPct, fmtUsd } from "@/lib/format";
 import { FillsTable } from "./fills-table";
 import { FundingTable } from "./funding-table";
 import { OrdersTable } from "./orders-table";
@@ -60,7 +64,7 @@ function PerformanceStrip({ activity }: { activity: ActivityPayload }) {
         <span>
           <Pnl value={s.largestWin.netPnl} compact className="text-[13px]" />
           <span className="ml-1 text-[11px] text-ink3">
-            {s.largestWin.coin}
+            {marketName(s.largestWin.coin, activity.outcomeMarkets)}
           </span>
         </span>
       ) : (
@@ -73,7 +77,7 @@ function PerformanceStrip({ activity }: { activity: ActivityPayload }) {
         <span>
           <Pnl value={s.largestLoss.netPnl} compact className="text-[13px]" />
           <span className="ml-1 text-[11px] text-ink3">
-            {s.largestLoss.coin}
+            {marketName(s.largestLoss.coin, activity.outcomeMarkets)}
           </span>
         </span>
       ) : (
@@ -150,6 +154,8 @@ function CoverageNote({ activity }: { activity: ActivityPayload }) {
             ` · extremely active account: fills after ${fmtDay(c.fillsTo)} exceed the loaded window and are not included`}
           {c.truncatedTrades > 0 &&
             ` · ${c.truncatedTrades} position${c.truncatedTrades === 1 ? " was" : "s were"} opened before this window (marked “partial history”); the API doesn’t serve older fills`}
+          {activity.stats.outcomeVolume > 0 &&
+            ` · outcome-market volume ${fmtUsd(activity.stats.outcomeVolume, { compact: true })}`}
           {c.fundingFrom &&
             ` · funding history from ${fmtDay(c.fundingFrom)} (${c.fundingCount.toLocaleString()} events${c.fundingComplete ? "" : ", capped"})`}
           {feeTokens.length > 0 &&
@@ -158,7 +164,7 @@ function CoverageNote({ activity }: { activity: ActivityPayload }) {
               .join(", ")}`}
         </>
       ) : (
-        "No perp fills found for this address."
+        "No fills found for this address."
       )}
     </p>
   );
@@ -170,12 +176,15 @@ export function ActivityTabs({
   error,
   onRetry,
   openOrders,
+  orderMarkets,
 }: {
   activity: ActivityPayload | undefined;
   pending: boolean;
   error: Error | null;
   onRetry: () => void;
   openOrders: OrderView[] | undefined;
+  /** Outcome markets for the open orders, which come from the overview call. */
+  orderMarkets: OutcomeMarketMap | undefined;
 }) {
   const [tab, setTab] = useState<Tab>("trades");
 
@@ -269,6 +278,7 @@ export function ActivityTabs({
               <TradesTable
                 trades={activity.trades}
                 tradesTotal={activity.tradesTotal}
+                markets={activity.outcomeMarkets}
               />
             </>
           )}
@@ -276,6 +286,7 @@ export function ActivityTabs({
             <FillsTable
               fills={activity.recentFills}
               fillsTotal={activity.fillsTotal}
+              markets={activity.outcomeMarkets}
             />
           )}
           {tab === "funding" && (
@@ -292,7 +303,9 @@ export function ActivityTabs({
               totalWithdrawn={activity.totalWithdrawn}
             />
           )}
-          {tab === "orders" && <OrdersTable orders={openOrders} />}
+          {tab === "orders" && (
+            <OrdersTable orders={openOrders} markets={orderMarkets ?? {}} />
+          )}
           <CoverageNote activity={activity} />
         </>
       )}

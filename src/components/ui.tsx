@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { OutcomeMarketView } from "@/lib/api-types";
 import { fmtPct, fmtUsdSigned } from "@/lib/format";
 import type { ViewMode } from "@/lib/hooks";
 
@@ -153,6 +154,132 @@ export function CoinTag({ coin, sub }: { coin: string; sub?: string | null }) {
           </span>
         )}
       </span>
+    </span>
+  );
+}
+
+/**
+ * Outcome markets have no icon on Hyperliquid's CDN and their coin (`#8560`)
+ * means nothing to a reader, so they get a probability glyph plus the market's
+ * real question. `sub` is appended after the parent question, when there is one.
+ */
+export function OutcomeTag({
+  market,
+  sub,
+}: {
+  market: OutcomeMarketView;
+  sub?: string | null;
+}) {
+  const hue = coinHue(market.coin);
+  // A settled market has no name left, so its coin stands in as the identifier
+  // rather than leaving the row with nothing to cross-reference.
+  const detail = [market.question ?? (market.known ? null : market.coin), sub]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <span className="inline-flex min-w-0 items-center gap-2">
+      <span
+        aria-hidden="true"
+        className="flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+        style={{
+          background: `light-dark(oklch(0.88 0.06 ${hue}), oklch(0.32 0.055 ${hue}))`,
+          color: `light-dark(oklch(0.35 0.09 ${hue}), oklch(0.85 0.09 ${hue}))`,
+        }}
+      >
+        %
+      </span>
+      <span className="min-w-0">
+        <span
+          className="block truncate font-medium text-ink"
+          title={`${market.title} · ${market.coin}`}
+        >
+          {market.title}
+        </span>
+        {detail && (
+          <span className="block truncate text-[11px] text-ink3" title={detail}>
+            {detail}
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * One-line name for a coin, for places too tight for a full tag. Outcome
+ * markets read as "Spain · Yes"; everything else stays its plain coin.
+ */
+export function marketName(
+  coin: string,
+  markets: Record<string, OutcomeMarketView>,
+): string {
+  const market = markets[coin];
+  return market ? `${market.title} · ${market.sideName}` : coin;
+}
+
+/**
+ * Iconless market label for dense lists: the outcome's name over its side,
+ * or the plain coin for everything else.
+ */
+export function MarketLabel({
+  coin,
+  market,
+}: {
+  coin: string;
+  market?: OutcomeMarketView | null;
+}) {
+  if (!market) return <span className="font-medium text-ink">{coin}</span>;
+  const detail = [
+    market.sideName,
+    market.question ?? (market.known ? null : market.coin),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span
+        className="truncate font-medium text-ink"
+        title={`${market.title} · ${market.coin}`}
+      >
+        {market.title}
+      </span>
+      <span className="truncate text-[11px] text-ink3" title={detail}>
+        {detail}
+      </span>
+    </span>
+  );
+}
+
+/** Asset tag that renders outcome markets by name and everything else by coin. */
+export function MarketTag({
+  coin,
+  market,
+  sub,
+}: {
+  coin: string;
+  market?: OutcomeMarketView | null;
+  sub?: string | null;
+}) {
+  return market ? (
+    <OutcomeTag market={market} sub={sub} />
+  ) : (
+    <CoinTag coin={coin} sub={sub} />
+  );
+}
+
+/**
+ * Which side of an outcome market is held. Takes the place of long/short,
+ * which doesn't apply: every outcome position is long its side's token.
+ */
+export function SideBadge({ market }: { market: OutcomeMarketView }) {
+  const first = market.sideIndex === 0;
+  return (
+    <span
+      className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${
+        first ? "bg-up/12 text-upt" : "bg-down/12 text-downt"
+      }`}
+    >
+      {market.sideName}
     </span>
   );
 }

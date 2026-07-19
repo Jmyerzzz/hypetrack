@@ -1,3 +1,4 @@
+import { isOutcomeCoin } from "./hyperliquid/outcome";
 import type { HlFill, HlFundingEvent } from "./hyperliquid/types";
 import { isSpotCoin, type Trade } from "./trades";
 
@@ -44,6 +45,8 @@ export type TradeStats = {
   pnlByCoin: CoinPnl[];
   /** Σ |px·sz| over perp fills in the window (both opens and closes). */
   perpVolume: number;
+  /** Σ |px·sz| over HIP-4 outcome-market fills in the window. */
+  outcomeVolume: number;
   /** All USDC fees over the supplied fills, builder fees included. */
   totalUsdcFees: number;
   /** Non-USDC fee totals by token, should any appear. */
@@ -104,11 +107,15 @@ export function computeStats(
     if (t.isWin === false) coin.losses++;
     coinMap.set(t.coin, coin);
 
-    const dir = t.direction === "long" ? longs : shorts;
-    dir.count++;
-    dir.netPnl += t.netPnl;
-    if (t.isWin === true) dir.wins++;
-    if (t.isWin === false) dir.losses++;
+    // Outcome positions are long-only by construction (you take the other view
+    // by buying the other side), so counting them would inflate the long book.
+    if (t.kind !== "outcome") {
+      const dir = t.direction === "long" ? longs : shorts;
+      dir.count++;
+      dir.netPnl += t.netPnl;
+      if (t.isWin === true) dir.wins++;
+      if (t.isWin === false) dir.losses++;
+    }
   }
 
   for (const t of closed) {
@@ -139,16 +146,24 @@ export function computeStats(
     : null;
 
   let perpVolume = 0;
+  let outcomeVolume = 0;
   let totalUsdcFees = 0;
   const feesByToken: Record<string, number> = {};
   for (const f of fills) {
     const notional = num(f.px) * num(f.sz);
-    if (!isSpotCoin(f.coin)) perpVolume += notional;
+    if (isOutcomeCoin(f.coin)) outcomeVolume += notional;
+    else if (!isSpotCoin(f.coin)) perpVolume += notional;
     const fee = num(f.fee);
     if (f.feeToken === "USDC") totalUsdcFees += fee;
     else if (f.feeToken)
       feesByToken[f.feeToken] = (feesByToken[f.feeToken] ?? 0) + fee;
     totalUsdcFees += num(f.builderFee);
+  }
+
+  // Outcome fills are denominated in their own contract and normally carry a
+  // zero fee, which would otherwise list every market traded as a fee token.
+  for (const [token, amount] of Object.entries(feesByToken)) {
+    if (Math.abs(amount) < 1e-9) delete feesByToken[token];
   }
 
   let fundingReceived = 0;
@@ -195,6 +210,7 @@ export function computeStats(
     shorts,
     pnlByCoin: [...coinMap.values()].sort((a, b) => b.netPnl - a.netPnl),
     perpVolume,
+    outcomeVolume,
     totalUsdcFees,
     feesByToken,
     netFunding: fundingReceived + fundingPaid,

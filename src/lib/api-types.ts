@@ -1,6 +1,15 @@
+import type { OutcomeMarketView } from "./hyperliquid/outcome";
 import type { RiskMetrics } from "./risk";
 import type { TradeStats } from "./stats";
 import type { Trade } from "./trades";
+
+export type { OutcomeMarketView };
+
+/**
+ * Resolved HIP-4 market descriptors for every outcome coin in a payload, keyed
+ * by the canonical `#8560` coin so tables can label a raw coin string.
+ */
+export type OutcomeMarketMap = Record<string, OutcomeMarketView>;
 
 export type PortfolioPoint = { t: number; v: number };
 
@@ -46,6 +55,31 @@ export type PositionView = {
   fundingSinceOpen: number;
 };
 
+/**
+ * An open HIP-4 outcome position. These are token balances, not margined
+ * positions: always long, never liquidatable, and worth $1 each if the side
+ * wins and $0 if it loses.
+ */
+export type OutcomePositionView = {
+  /** Canonical `#8560` coin; look up `outcomeMarkets[coin]` for its labels. */
+  coin: string;
+  size: number;
+  /** Portion of `size` reserved by resting orders. */
+  hold: number;
+  /** Cost basis of the whole position. */
+  entryNotional: number;
+  avgEntryPx: number;
+  /** Last mid; null when the market has no book (settled or halted). */
+  markPx: number | null;
+  /** size × markPx, or null when unpriced. */
+  positionValue: number | null;
+  unrealizedPnl: number | null;
+  /** Unrealized return on cost basis, as a fraction. */
+  roe: number | null;
+  /** What the position pays if this side wins ($1 per token). */
+  payoutIfWon: number;
+};
+
 export type OrderView = {
   oid: number;
   coin: string;
@@ -70,8 +104,9 @@ export type SpotBalanceView = {
 };
 
 /**
- * Total equity mirrors Hyperliquid's portfolio page (perp + spot value);
- * trades, PnL series, and volume stay scoped to the perp trading account.
+ * Total equity mirrors Hyperliquid's portfolio page (perp + spot + outcome
+ * value); trades, PnL series, and volume stay scoped to the perp trading
+ * account.
  */
 export type OverviewPayload = {
   address: string;
@@ -82,6 +117,10 @@ export type OverviewPayload = {
   /** Matches Hyperliquid's "Total Equity" (perp + spot, no double count). */
   totalEquity: number;
   spotBalances: SpotBalanceView[];
+  outcomePositions: OutcomePositionView[];
+  /** Mark-to-market value of all open outcome positions. */
+  outcomeValue: number;
+  outcomeMarkets: OutcomeMarketMap;
   withdrawable: number;
   marginUsed: number;
   totalNtlPos: number;
@@ -151,6 +190,7 @@ export type ActivityPayload = {
   fetchedAt: number;
   trades: Trade[];
   tradesTotal: number;
+  outcomeMarkets: OutcomeMarketMap;
   stats: TradeStats;
   recentFills: FillView[];
   fillsTotal: number;

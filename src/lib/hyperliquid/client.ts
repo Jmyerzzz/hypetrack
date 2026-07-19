@@ -1,10 +1,12 @@
 import type {
+  HlAllMids,
   HlCandle,
   HlClearinghouseState,
   HlFill,
   HlFundingEvent,
   HlLedgerUpdate,
   HlOpenOrder,
+  HlOutcomeMeta,
   HlPortfolio,
   HlSpotClearinghouseState,
   HlSpotMetaAndAssetCtxs,
@@ -184,4 +186,14 @@ export async function fetchCandles(
 
 export async function fetchOpenOrders(user: string): Promise<HlOpenOrder[]> {
   return hlInfo<HlOpenOrder[]>({ type: "frontendOpenOrders", user });
+}
+
+/** Live HIP-4 outcome markets; settled ones are not returned. */
+export async function fetchOutcomeMeta(): Promise<HlOutcomeMeta> {
+  return hlInfo<HlOutcomeMeta>({ type: "outcomeMeta" });
+}
+
+/** Mid prices for every market, outcome sides (`#8560`) included. */
+export async function fetchAllMids(): Promise<HlAllMids> {
+  return hlInfo<HlAllMids>({ type: "allMids" });
 }
