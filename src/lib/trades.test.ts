@@ -626,3 +626,154 @@ describe("chain-head detection for a scrambled first group", () => {
     expect(t.grossPnl).toBeCloseTo(4);
   });
 });
+
+describe("outcome markets", () => {
+  /** Buy 100 YES at 0.40, market resolves Yes: 100 contracts settle at $1. */
+  const wonTrade = () =>
+    groupTrades([
+      fill({
+        coin: "#8560",
+        px: "0.40",
+        sz: "100",
+        side: "B",
+        time: 1000,
+        startPosition: "0.0",
+        dir: "Buy",
+        fee: "0.2",
+      }),
+      fill({
+        coin: "#8560",
+        px: "1.0",
+        sz: "100",
+        side: "A",
+        time: 9000,
+        startPosition: "100.0",
+        dir: "Settlement",
+        closedPnl: "60.0",
+      }),
+    ]);
+
+  it("tags outcome trades and closes them out on settlement", () => {
+    const trades = wonTrade();
+    expect(trades).toHaveLength(1);
+    const t = trades[0];
+    expect(t.kind).toBe("outcome");
+    expect(t.status).toBe("closed");
+    expect(t.avgEntryPx).toBeCloseTo(0.4);
+    expect(t.avgExitPx).toBeCloseTo(1);
+    expect(t.netPnl).toBeCloseTo(59.8);
+    expect(t.isWin).toBe(true);
+    expect(t.slices.at(-1)?.special).toBe("settlement");
+  });
+
+  it("settles the losing side at zero rather than leaving it open forever", () => {
+    const trades = groupTrades([
+      fill({
+        coin: "#8561",
+        px: "0.60",
+        sz: "50",
+        side: "B",
+        time: 1000,
+        startPosition: "0.0",
+        dir: "Buy",
+      }),
+      fill({
+        coin: "#8561",
+        px: "0.0",
+        sz: "50",
+        side: "A",
+        time: 9000,
+        startPosition: "50.0",
+        dir: "Settlement",
+        closedPnl: "-30.0",
+      }),
+    ]);
+    expect(trades).toHaveLength(1);
+    expect(trades[0].status).toBe("closed");
+    expect(trades[0].isWin).toBe(false);
+    expect(trades[0].netPnl).toBeCloseTo(-30);
+  });
+
+  it("treats minting and burning a set as position moves, not trades", () => {
+    const trades = groupTrades([
+      fill({
+        coin: "#7411",
+        px: "0.5",
+        sz: "4",
+        side: "B",
+        time: 1000,
+        startPosition: "0.0",
+        dir: "Split Outcome",
+      }),
+      fill({
+        coin: "#7411",
+        px: "0.5",
+        sz: "4",
+        side: "A",
+        time: 2000,
+        startPosition: "4.0",
+        dir: "Merge Outcome",
+      }),
+    ]);
+    expect(trades).toHaveLength(1);
+    expect(trades[0].slices.map((s) => s.special)).toEqual(["split", "merge"]);
+    expect(trades[0].status).toBe("closed");
+  });
+
+  it("reports no funding for outcome trades instead of a coverage warning", () => {
+    const trades = wonTrade();
+    // Coverage that would flag a perp trade as partial: starts after the open.
+    attributeFunding(trades, {
+      coverageStart: 5000,
+      coverageEnd: Number.POSITIVE_INFINITY,
+      events: [],
+    });
+    expect(trades[0].funding).toBe(0);
+    expect(trades[0].fundingCovered).toBe(true);
+    expect(trades[0].netPnl).toBeCloseTo(59.8);
+  });
+
+  it("keeps outcome trades out of the long/short split and perp volume", () => {
+    const outcome = wonTrade();
+    const perp = groupTrades([
+      fill({
+        coin: "ETH",
+        px: "2000",
+        sz: "1",
+        side: "A",
+        time: 1000,
+        startPosition: "0.0",
+      }),
+    ]);
+    const stats = computeStats([...outcome, ...perp], [], []);
+    expect(stats.longs.count).toBe(0);
+    expect(stats.shorts.count).toBe(1);
+    // The outcome trade still counts as a trade everywhere else.
+    expect(stats.wins).toBe(1);
+    expect(stats.pnlByCoin).toHaveLength(2);
+  });
+
+  it("separates outcome fill volume from perp volume", () => {
+    const fills = [
+      fill({
+        coin: "#8560",
+        px: "0.40",
+        sz: "100",
+        side: "B",
+        time: 1000,
+        startPosition: "0.0",
+      }),
+      fill({
+        coin: "ETH",
+        px: "2000",
+        sz: "1",
+        side: "B",
+        time: 1000,
+        startPosition: "0.0",
+      }),
+    ];
+    const stats = computeStats([], fills, []);
+    expect(stats.outcomeVolume).toBeCloseTo(40);
+    expect(stats.perpVolume).toBeCloseTo(2000);
+  });
+});

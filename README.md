@@ -5,9 +5,10 @@
 sign-up — and get the full story of its perp trading account, built from
 Hyperliquid's public info API. Light and dark themes included.
 
-Scope: **total equity** mirrors Hyperliquid's portfolio page (perp + spot, with
-perp-committed USDC counted once); trades, PnL curves, volume, fills, and
-orders are scoped to the perp trading account.
+Scope: **total equity** mirrors Hyperliquid's portfolio page (perp + spot +
+HIP-4 outcome contracts, with perp-committed USDC counted once); PnL curves and
+lifetime volume come from Hyperliquid's perp portfolio series, while trades,
+fills, and orders cover both perps and outcome markets.
 
 ## Features
 
@@ -31,7 +32,17 @@ orders are scoped to the perp trading account.
 - **Open positions** — size, entry/mark/liquidation price, leverage, margin,
   funding since open, unrealized PnL and ROE — plus an account-risk breakdown
   (margin used, maintenance margin, account leverage).
-- **Everything else** — open perp orders, raw fills, hourly funding events, and
+- **HIP-4 outcome markets** — prediction-market contracts appear by name
+  ("Argentina · Yes" under *2026 World Cup Champion*) rather than by raw coin,
+  both as open positions — contracts held, entry vs current odds, cost, value,
+  payout if the side wins, unrealized PnL — and as reconstructed trades
+  alongside perps. Prices render as implied probability, settlement and
+  set minting/burning are labelled as the non-trade events they are, and
+  funding is marked n/a because these contracts are fully collateralized.
+  Generated markets get decoded names (`BTC ≥ 64,715`, `BTC 63,420 – 66,009`);
+  markets that already settled drop out of Hyperliquid's metadata, so they
+  degrade to their outcome id rather than to a guessed name.
+- **Everything else** — open orders, raw fills, hourly funding events, and
   deposits/withdrawals/transfers.
 - **Liquidations flagged**, TWAP fills marked, builder-dex perps (e.g.
   `xyz:AAPL` stock perps) fully supported.
@@ -47,7 +58,7 @@ Other scripts:
 
 ```bash
 npm run build     # production build
-npm run test      # vitest unit tests (trade-grouping engine)
+npm run test      # vitest unit tests (trade grouping, risk, outcome markets)
 npm run lint      # biome check
 npm run lint:fix  # biome check --write
 npm run typecheck # tsc --noEmit

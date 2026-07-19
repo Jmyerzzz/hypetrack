@@ -11,6 +11,7 @@ import { rememberAddress, useActivity, useOverview } from "@/lib/hooks";
 import { AccountBreakdown } from "./account-breakdown";
 import { ActivityTabs } from "./activity-tabs";
 import { EquityChart } from "./equity-chart";
+import { OutcomePositions } from "./outcome-positions";
 import { PnlByCoin } from "./pnl-by-coin";
 import { PositionsTable } from "./positions-table";
 import { RiskCard } from "./risk-card";
@@ -231,12 +232,20 @@ export function Dashboard({ address }: { address: string }) {
               <PositionsTable positions={overview.data.positions} />
             )}
 
+            {overview.data && overview.data.outcomePositions.length > 0 && (
+              <OutcomePositions
+                positions={overview.data.outcomePositions}
+                markets={overview.data.outcomeMarkets}
+              />
+            )}
+
             <ActivityTabs
               activity={activity.data}
               pending={activity.isPending}
               error={activity.isError ? (activity.error as Error) : null}
               onRetry={() => activity.refetch()}
               openOrders={overview.data?.openOrders}
+              orderMarkets={overview.data?.outcomeMarkets}
             />
           </>
         )}

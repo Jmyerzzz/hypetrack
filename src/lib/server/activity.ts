@@ -11,6 +11,7 @@ import {
   fetchFunding,
   fetchLedgerUpdates,
 } from "../hyperliquid/client";
+import { describeOutcomeCoins, isOutcomeCoin } from "../hyperliquid/outcome";
 import type { HlCandle, HlFill, HlLedgerUpdate } from "../hyperliquid/types";
 import { computeStats } from "../stats";
 import {
@@ -19,6 +20,7 @@ import {
   isSpotCoin,
   type Trade,
 } from "../trades";
+import { getOutcomeIndex } from "./markets";
 
 const TRADES_PAYLOAD_CAP = 500;
 const FILLS_PAYLOAD_CAP = 600;
@@ -144,9 +146,10 @@ export async function buildActivity(address: string): Promise<ActivityPayload> {
   const fillsTo = fills[fills.length - 1]?.time ?? null;
 
   const fundingStart = fillsFrom ?? Date.now() - 90 * 24 * 3600 * 1000;
-  const [fundingResult, ledgerResult] = await Promise.all([
+  const [fundingResult, ledgerResult, outcomeIndex] = await Promise.all([
     fetchFunding(address, fundingStart),
     fetchLedgerUpdates(address),
+    getOutcomeIndex(),
   ]);
 
   const trades = groupTrades(fills, address);
@@ -224,11 +227,23 @@ export async function buildActivity(address: string): Promise<ActivityPayload> {
     }))
     .reverse();
 
+  const payloadTrades = trades.slice(0, TRADES_PAYLOAD_CAP).map(capSlices);
+
   return {
     address,
     fetchedAt: Date.now(),
-    trades: trades.slice(0, TRADES_PAYLOAD_CAP).map(capSlices),
+    trades: payloadTrades,
     tradesTotal: trades.length,
+    // Only the markets actually referenced by this payload, so an account with
+    // one outcome trade doesn't ship the whole HIP-4 universe.
+    outcomeMarkets: describeOutcomeCoins(
+      [
+        ...payloadTrades.map((t) => t.coin),
+        ...recentFills.map((f) => f.coin),
+        ...stats.pnlByCoin.map((c) => c.coin),
+      ].filter(isOutcomeCoin),
+      outcomeIndex,
+    ),
     stats,
     recentFills,
     fillsTotal: fills.length,

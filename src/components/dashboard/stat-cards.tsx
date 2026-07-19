@@ -72,7 +72,15 @@ export function StatCards({
           overview ? (
             <span className="num">
               Perp {fmtUsd(overview.perpEquity, { compact: true })} · Spot{" "}
-              {fmtUsd(overview.spotValue, { compact: true })} · Unrealized{" "}
+              {fmtUsd(overview.spotValue, { compact: true })}
+              {/* Listed only when held, so the three parts always add up. */}
+              {overview.outcomeValue > 0 && (
+                <>
+                  {" "}
+                  · Outcome {fmtUsd(overview.outcomeValue, { compact: true })}
+                </>
+              )}{" "}
+              · Unrealized{" "}
               <Pnl
                 value={overview.totalUnrealizedPnl}
                 compact

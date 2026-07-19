@@ -4,17 +4,19 @@ import { Fragment, useMemo, useState } from "react";
 import {
   CardField,
   CardList,
-  CoinTag,
   DataCard,
   DirectionBadge,
   EmptyState,
   ExplorerLink,
+  MarketTag,
   Pnl,
   ResultBadge,
+  SideBadge,
   Td,
   Th,
   ViewToggle,
 } from "@/components/ui";
+import type { OutcomeMarketMap, OutcomeMarketView } from "@/lib/api-types";
 import {
   fmtDuration,
   fmtNetPnlBreakdown,
@@ -23,14 +25,30 @@ import {
   fmtSize,
   fmtTime,
   fmtUsd,
+  fmtUsdSigned,
 } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
-import type { Trade } from "@/lib/trades";
+import type { SliceAction, Trade } from "@/lib/trades";
 
 type ResultFilter = "all" | "wins" | "losses" | "open" | "liquidated";
 type DirFilter = "all" | "long" | "short";
+type KindFilter = "all" | "perp" | "outcome";
 
 const PAGE = 30;
+
+/** Position moves that aren't trades; see {@link SliceAction}. */
+const SPECIAL_SLICE_LABELS: Record<SliceAction, string> = {
+  settlement: "Settled",
+  split: "Minted set",
+  merge: "Burned set",
+};
+
+/**
+ * An outcome contract trades between $0 and $1, so its price is the market's
+ * implied probability and reads better as one.
+ */
+const fmtTradePx = (px: number | null, kind: Trade["kind"]): string =>
+  kind === "outcome" ? fmtPct(px, { digits: 1 }) : fmtPrice(px);
 
 function TradeDetail({
   trade,
@@ -71,9 +89,16 @@ function TradeDetail({
           <Pnl value={trade.grossPnl} className="block text-[12px]" />
         </p>
         <p className="flex flex-wrap justify-between gap-x-4 gap-y-0.5 sm:block">
-          <span className="text-ink3">Net = gross − fees + funding</span>
+          {/* Outcome markets never pay funding, so the term is dropped. */}
+          <span className="text-ink3">
+            {trade.kind === "outcome"
+              ? "Net = gross − fees"
+              : "Net = gross − fees + funding"}
+          </span>
           <span className="num block text-right text-ink sm:text-left">
-            {fmtNetPnlBreakdown(trade.grossPnl, trade.fees, trade.funding)}
+            {trade.kind === "outcome"
+              ? `${fmtUsdSigned(trade.grossPnl)} ${trade.fees >= 0 ? "−" : "+"} ${fmtUsd(Math.abs(trade.fees))}`
+              : fmtNetPnlBreakdown(trade.grossPnl, trade.fees, trade.funding)}
           </span>
         </p>
         <p
@@ -140,10 +165,18 @@ function TradeDetail({
                 <Td align="left">
                   <span
                     className={`text-[11px] font-semibold tracking-wide uppercase ${
-                      s.action === "open" ? "text-accent2" : "text-ink2"
+                      s.special
+                        ? "text-warn"
+                        : s.action === "open"
+                          ? "text-accent2"
+                          : "text-ink2"
                     }`}
                   >
-                    {s.action === "open" ? "Open / add" : "Close / reduce"}
+                    {s.special
+                      ? SPECIAL_SLICE_LABELS[s.special]
+                      : s.action === "open"
+                        ? "Open / add"
+                        : "Close / reduce"}
                   </span>
                   {s.twap && (
                     <span className="ml-1.5 text-[10px] text-ink3">TWAP</span>
@@ -185,10 +218,12 @@ function TradeDetail({
 /** Card counterpart of a trade row: PnL leads, supporting fields below. */
 function TradeCard({
   trade,
+  market,
   isOpen,
   onToggle,
 }: {
   trade: Trade;
+  market: OutcomeMarketView | undefined;
   isOpen: boolean;
   onToggle: () => void;
 }) {
@@ -203,12 +238,17 @@ function TradeCard({
         className="flex w-full items-start justify-between gap-3 text-left"
       >
         <span className="flex min-w-0 flex-col gap-1.5">
-          <CoinTag
+          <MarketTag
             coin={trade.coin}
+            market={market}
             sub={trade.truncated ? "partial history" : null}
           />
           <span className="flex flex-wrap items-center gap-1.5">
-            <DirectionBadge direction={trade.direction} />
+            {market ? (
+              <SideBadge market={market} />
+            ) : (
+              <DirectionBadge direction={trade.direction} />
+            )}
             <ResultBadge
               isWin={trade.isWin}
               status={trade.status}
@@ -246,11 +286,18 @@ function TradeCard({
       </button>
 
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-edge pt-3">
-        <CardField label="Entry (avg)">
-          <span className="num">{fmtPrice(trade.avgEntryPx)}</span>
+        <CardField
+          label={trade.kind === "outcome" ? "Entry odds" : "Entry (avg)"}
+        >
+          <span className="num">
+            {fmtTradePx(trade.avgEntryPx, trade.kind)}
+          </span>
         </CardField>
-        <CardField label="Exit (avg)" align="right">
-          <span className="num">{fmtPrice(trade.avgExitPx)}</span>
+        <CardField
+          label={trade.kind === "outcome" ? "Exit odds" : "Exit (avg)"}
+          align="right"
+        >
+          <span className="num">{fmtTradePx(trade.avgExitPx, trade.kind)}</span>
         </CardField>
         <CardField label="Max size">
           <span className="num">{fmtSize(trade.maxSize)}</span>
@@ -269,18 +316,29 @@ function TradeCard({
           <span className="num text-ink2">{fmtUsd(trade.fees)}</span>
         </CardField>
         <CardField label="Funding" align="right">
-          <Pnl
-            value={trade.funding}
-            className="text-[13px]"
-            muted={trade.funding === 0}
-          />
-          {!trade.fundingCovered && (
+          {trade.kind === "outcome" ? (
             <span
-              className="ml-0.5 align-super text-[10px] text-warn"
-              title="Partial funding data"
+              className="text-ink3"
+              title="Outcome markets are fully collateralized and pay no funding"
             >
-              *
+              n/a
             </span>
+          ) : (
+            <>
+              <Pnl
+                value={trade.funding}
+                className="text-[13px]"
+                muted={trade.funding === 0}
+              />
+              {!trade.fundingCovered && (
+                <span
+                  className="ml-0.5 align-super text-[10px] text-warn"
+                  title="Partial funding data"
+                >
+                  *
+                </span>
+              )}
+            </>
           )}
         </CardField>
         <CardField label="Opened">
@@ -316,22 +374,37 @@ function TradeCard({
 export function TradesTable({
   trades,
   tradesTotal,
+  markets,
 }: {
   trades: Trade[];
   tradesTotal: number;
+  markets: OutcomeMarketMap;
 }) {
   const [view, setView] = useViewMode();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [coinFilter, setCoinFilter] = useState("all");
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
   const [dirFilter, setDirFilter] = useState<DirFilter>("all");
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [visible, setVisible] = useState(PAGE);
 
-  const coins = useMemo(
-    () =>
-      [...new Set(trades.map((t) => t.coin))].sort((a, b) =>
-        a.localeCompare(b),
-      ),
+  // Outcome markets get their real name in the picker; a bare "#8560" is
+  // unrecognizable, and several sides of one question would look identical.
+  const coins = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const t of trades) {
+      if (seen.has(t.coin)) continue;
+      const market = markets[t.coin];
+      seen.set(
+        t.coin,
+        market ? `${market.title} · ${market.sideName}` : t.coin,
+      );
+    }
+    return [...seen].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [trades, markets]);
+
+  const hasOutcome = useMemo(
+    () => trades.some((t) => t.kind === "outcome"),
     [trades],
   );
 
@@ -339,6 +412,7 @@ export function TradesTable({
     () =>
       trades.filter((t) => {
         if (coinFilter !== "all" && t.coin !== coinFilter) return false;
+        if (kindFilter !== "all" && t.kind !== kindFilter) return false;
         if (dirFilter !== "all" && t.direction !== dirFilter) return false;
         switch (resultFilter) {
           case "wins":
@@ -353,7 +427,7 @@ export function TradesTable({
             return true;
         }
       }),
-    [trades, coinFilter, resultFilter, dirFilter],
+    [trades, coinFilter, resultFilter, dirFilter, kindFilter],
   );
 
   const shown = filtered.slice(0, visible);
@@ -365,8 +439,8 @@ export function TradesTable({
   if (trades.length === 0) {
     return (
       <EmptyState
-        title="No perp trades in the loaded window"
-        hint="Once this address trades perps on Hyperliquid, reconstructed positions will appear here."
+        title="No trades in the loaded window"
+        hint="Once this address trades perps or outcome markets on Hyperliquid, reconstructed positions will appear here."
       />
     );
   }
@@ -384,12 +458,28 @@ export function TradesTable({
           aria-label="Filter by market"
         >
           <option value="all">All markets</option>
-          {coins.map((c) => (
-            <option key={c} value={c}>
-              {c}
+          {coins.map(([coin, label]) => (
+            <option key={coin} value={coin}>
+              {label}
             </option>
           ))}
         </select>
+        {/* Only worth a control once the account actually has both kinds. */}
+        {hasOutcome && (
+          <select
+            value={kindFilter}
+            onChange={(e) => {
+              setKindFilter(e.target.value as KindFilter);
+              setVisible(PAGE);
+            }}
+            className={selectClass}
+            aria-label="Filter by market type"
+          >
+            <option value="all">Perps &amp; outcomes</option>
+            <option value="perp">Perps only</option>
+            <option value="outcome">Outcome markets</option>
+          </select>
+        )}
         <select
           value={resultFilter}
           onChange={(e) => {
@@ -430,6 +520,7 @@ export function TradesTable({
             <TradeCard
               key={t.id}
               trade={t}
+              market={markets[t.coin]}
               isOpen={expanded === t.id}
               onToggle={() => toggle(t.id)}
             />
@@ -445,8 +536,8 @@ export function TradesTable({
                 <Th align="left">Side</Th>
                 <Th align="left">Result</Th>
                 <Th>Net PnL</Th>
-                <Th>Entry (avg)</Th>
-                <Th>Exit (avg)</Th>
+                <Th>Entry</Th>
+                <Th>Exit</Th>
                 <Th>Max size</Th>
                 <Th>Fees</Th>
                 <Th>Funding</Th>
@@ -457,6 +548,7 @@ export function TradesTable({
             <tbody>
               {shown.map((t) => {
                 const isOpen = expanded === t.id;
+                const market = markets[t.coin];
                 return (
                   <Fragment key={t.id}>
                     <tr
@@ -473,7 +565,11 @@ export function TradesTable({
                           type="button"
                           aria-expanded={isOpen}
                           aria-controls={`trade-detail-${t.id}`}
-                          aria-label={`${isOpen ? "Hide" : "Show"} fills for ${t.coin} ${t.direction} trade`}
+                          aria-label={`${isOpen ? "Hide" : "Show"} fills for ${
+                            market
+                              ? `${market.title} ${market.sideName}`
+                              : `${t.coin} ${t.direction}`
+                          } trade`}
                           onClick={(e) => {
                             e.stopPropagation();
                             toggle(t.id);
@@ -497,13 +593,18 @@ export function TradesTable({
                         </button>
                       </Td>
                       <Td align="left">
-                        <CoinTag
+                        <MarketTag
                           coin={t.coin}
+                          market={market}
                           sub={t.truncated ? "partial history" : null}
                         />
                       </Td>
                       <Td align="left">
-                        <DirectionBadge direction={t.direction} />
+                        {market ? (
+                          <SideBadge market={market} />
+                        ) : (
+                          <DirectionBadge direction={t.direction} />
+                        )}
                       </Td>
                       <Td align="left">
                         <ResultBadge
@@ -524,8 +625,10 @@ export function TradesTable({
                           </span>
                         )}
                       </Td>
-                      <Td className="num">{fmtPrice(t.avgEntryPx)}</Td>
-                      <Td className="num">{fmtPrice(t.avgExitPx)}</Td>
+                      <Td className="num">
+                        {fmtTradePx(t.avgEntryPx, t.kind)}
+                      </Td>
+                      <Td className="num">{fmtTradePx(t.avgExitPx, t.kind)}</Td>
                       <Td>
                         <span className="num block">{fmtSize(t.maxSize)}</span>
                         {t.avgEntryPx != null && (
@@ -538,18 +641,29 @@ export function TradesTable({
                       </Td>
                       <Td className="num text-ink2">{fmtUsd(t.fees)}</Td>
                       <Td>
-                        <Pnl
-                          value={t.funding}
-                          className="text-[13px]"
-                          muted={t.funding === 0}
-                        />
-                        {!t.fundingCovered && (
+                        {t.kind === "outcome" ? (
                           <span
-                            className="ml-0.5 align-super text-[10px] text-warn"
-                            title="Partial funding data"
+                            className="text-ink3"
+                            title="Outcome markets are fully collateralized and pay no funding"
                           >
-                            *
+                            n/a
                           </span>
+                        ) : (
+                          <>
+                            <Pnl
+                              value={t.funding}
+                              className="text-[13px]"
+                              muted={t.funding === 0}
+                            />
+                            {!t.fundingCovered && (
+                              <span
+                                className="ml-0.5 align-super text-[10px] text-warn"
+                                title="Partial funding data"
+                              >
+                                *
+                              </span>
+                            )}
+                          </>
                         )}
                       </Td>
                       <Td className="num text-ink2">

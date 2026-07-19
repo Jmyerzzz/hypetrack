@@ -1,7 +1,21 @@
+import { isOutcomeCoin } from "./hyperliquid/outcome";
 import type { HlFill, HlFundingEvent } from "./hyperliquid/types";
 
 /** Below this absolute size a perp position is considered flat (sizes have ≤6 dp). */
 const POSITION_EPS = 1e-9;
+
+/**
+ * Non-trade ways an outcome-market position moves: `split` mints a full set of
+ * sides for $1, `merge` burns one back, and `settlement` converts the position
+ * at $1 (won) or $0 (lost) when the market resolves.
+ */
+export type SliceAction = "settlement" | "split" | "merge";
+
+const SPECIAL_ACTIONS: Record<string, SliceAction> = {
+  Settlement: "settlement",
+  "Split Outcome": "split",
+  "Merge Outcome": "merge",
+};
 
 export type TradeSlice = {
   /** Hyperliquid trade id of the source fill (flip fills share it across both slices). */
@@ -11,6 +25,8 @@ export type TradeSlice = {
   /** Absolute size of this slice (a flip fill is split into close + open slices). */
   sz: number;
   action: "open" | "close";
+  /** Set when the fill wasn't a trade — see {@link SliceAction}. */
+  special?: SliceAction;
   /** USDC fee attributed to this slice (negative = maker rebate). */
   fee: number;
   /** Realized PnL booked by Hyperliquid on this slice (close slices only, before fees). */
@@ -24,6 +40,12 @@ export type TradeSlice = {
 export type Trade = {
   id: string;
   coin: string;
+  /**
+   * Outcome-market trades share the perp position lifecycle but have no
+   * leverage, funding, liquidation, or short side — a "long" there just means
+   * holding the side token.
+   */
+  kind: "perp" | "outcome";
   direction: "long" | "short";
   status: "open" | "closed";
   /** True when the position was opened before the available fill window. */
@@ -92,6 +114,7 @@ function newTrade(
   return {
     id: `${coin}:${openedAt}:${seq}`,
     coin,
+    kind: isOutcomeCoin(coin) ? "outcome" : "perp",
     direction,
     status: "open",
     truncated,
@@ -233,12 +256,14 @@ export function groupTrades(fills: HlFill[], userAddress?: string): Trade[] {
       isLiquidation: boolean,
     ): void => {
       const px = num(fill.px);
+      const special = SPECIAL_ACTIONS[fill.dir];
       trade.slices.push({
         tid: fill.tid,
         time: fill.time,
         px,
         sz,
         action,
+        ...(special ? { special } : {}),
         fee,
         closedPnl,
         hash: fill.hash,
@@ -400,18 +425,21 @@ export function attributeFunding(
   for (const events of byCoin.values()) events.sort((a, b) => a.time - b.time);
 
   for (const trade of trades) {
-    const events = byCoin.get(trade.coin);
     trade.funding = 0;
+    // Outcome markets are fully collateralized and never pay funding, so their
+    // zero is exact — flagging it as "partial data" would be a false warning.
+    const fundable = trade.kind !== "outcome";
     const tradeEnd = trade.closedAt ?? Number.POSITIVE_INFINITY;
     trade.fundingCovered =
-      !trade.truncated &&
-      trade.openedAt >= attribution.coverageStart &&
-      tradeEnd <= attribution.coverageEnd;
+      !fundable ||
+      (!trade.truncated &&
+        trade.openedAt >= attribution.coverageStart &&
+        tradeEnd <= attribution.coverageEnd);
+    const events = fundable ? byCoin.get(trade.coin) : undefined;
     if (events) {
-      const end = trade.closedAt ?? Number.POSITIVE_INFINITY;
       for (const event of events) {
         if (event.time < trade.openedAt) continue;
-        if (event.time > end) break;
+        if (event.time > tradeEnd) break;
         trade.funding += num(event.delta.usdc);
       }
     }

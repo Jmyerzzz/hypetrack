@@ -7,16 +7,37 @@ import {
   DataCard,
   EmptyState,
   ExplorerLink,
+  MarketLabel,
   Pnl,
   Td,
   Th,
   ViewToggle,
 } from "@/components/ui";
-import type { FillView } from "@/lib/api-types";
+import type { FillView, OutcomeMarketMap } from "@/lib/api-types";
 import { fmtPrice, fmtSize, fmtTime, fmtUsd } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
 
 const PAGE = 50;
+
+/**
+ * Outcome markets add non-trade fills — settlement at $0/$1, and minting or
+ * burning a full set of sides — which aren't a buy or a sell.
+ */
+const NON_TRADE_DIRS = new Set([
+  "Settlement",
+  "Split Outcome",
+  "Merge Outcome",
+]);
+
+function FillAction({ f }: { f: FillView }) {
+  const label = f.dir || (f.isBuy ? "Buy" : "Sell");
+  const tone = NON_TRADE_DIRS.has(f.dir)
+    ? "text-warn"
+    : f.isBuy
+      ? "text-upt"
+      : "text-downt";
+  return <span className={tone}>{label}</span>;
+}
 
 function FillFlags({ f }: { f: FillView }) {
   return (
@@ -30,7 +51,9 @@ function FillFlags({ f }: { f: FillView }) {
 }
 
 function feeLabel(f: FillView): React.ReactNode {
-  return f.feeToken === "USDC" ? (
+  // Outcome fills are charged in their own contract, so naming the token only
+  // adds noise when nothing was charged — which is the usual case there.
+  return f.feeToken === "USDC" || f.fee === 0 ? (
     fmtUsd(f.fee)
   ) : (
     <span>
@@ -40,16 +63,14 @@ function feeLabel(f: FillView): React.ReactNode {
   );
 }
 
-function FillCard({ f }: { f: FillView }) {
+function FillCard({ f, markets }: { f: FillView; markets: OutcomeMarketMap }) {
   return (
     <DataCard>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium text-ink">{f.coin}</p>
+          <MarketLabel coin={f.coin} market={markets[f.coin]} />
           <p className="text-[12px]">
-            <span className={f.isBuy ? "text-upt" : "text-downt"}>
-              {f.dir || (f.isBuy ? "Buy" : "Sell")}
-            </span>
+            <FillAction f={f} />
             <FillFlags f={f} />
           </p>
         </div>
@@ -93,14 +114,16 @@ function FillCard({ f }: { f: FillView }) {
 export function FillsTable({
   fills,
   fillsTotal,
+  markets,
 }: {
   fills: FillView[];
   fillsTotal: number;
+  markets: OutcomeMarketMap;
 }) {
   const [view, setView] = useViewMode();
   const [visible, setVisible] = useState(PAGE);
   if (fills.length === 0) {
-    return <EmptyState title="No perp fills in the loaded window" />;
+    return <EmptyState title="No fills in the loaded window" />;
   }
   const shown = fills.slice(0, visible);
 
@@ -113,7 +136,7 @@ export function FillsTable({
       {view === "cards" ? (
         <CardList minWidth={300}>
           {shown.map((f) => (
-            <FillCard key={f.tid} f={f} />
+            <FillCard key={f.tid} f={f} markets={markets} />
           ))}
         </CardList>
       ) : (
@@ -142,12 +165,10 @@ export function FillsTable({
                     {fmtTime(f.time)}
                   </Td>
                   <Td align="left">
-                    <span className="font-medium text-ink">{f.coin}</span>
+                    <MarketLabel coin={f.coin} market={markets[f.coin]} />
                   </Td>
                   <Td align="left">
-                    <span className={f.isBuy ? "text-upt" : "text-downt"}>
-                      {f.dir || (f.isBuy ? "Buy" : "Sell")}
-                    </span>
+                    <FillAction f={f} />
                     <FillFlags f={f} />
                   </Td>
                   <Td className="num">{fmtPrice(f.px)}</Td>

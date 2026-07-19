@@ -96,7 +96,8 @@ export type HlClearinghouseState = {
 
 export type HlSpotBalance = {
   coin: string;
-  token: number;
+  /** Absent on HIP-4 outcome balances (`+8560`), which are not spot tokens. */
+  token?: number;
   total: string;
   hold: string;
   entryNtl: string;
@@ -157,6 +158,39 @@ export type HlPortfolioPeriod =
   | "perpAllTime";
 
 export type HlPortfolio = [HlPortfolioPeriod, HlPortfolioPeriodData][];
+
+/** Coin → mid price, covering perps, spot pairs, and outcome sides (`#8560`). */
+export type HlAllMids = Record<string, string>;
+
+/** One side of a HIP-4 outcome market; index 0/1 matches the coin's last digit. */
+export type HlOutcomeSideSpec = { name: string };
+
+export type HlOutcomeSpec = {
+  outcome: number;
+  name: string;
+  /** Prose for curated markets, `key:value|…` for generated ones. */
+  description: string;
+  sideSpecs: HlOutcomeSideSpec[];
+  quoteToken?: string;
+};
+
+/** Groups outcomes that answer one question ("2026 World Cup Champion"). */
+export type HlOutcomeQuestion = {
+  question: number;
+  name: string;
+  description: string;
+  /** Resolves Yes when none of the named outcomes do. */
+  fallbackOutcome: number;
+  namedOutcomes: number[];
+  /** Already settled, so absent from `outcomes` but still attributable here. */
+  settledNamedOutcomes?: number[];
+};
+
+/** Live markets only — settled ones drop out of both lists. */
+export type HlOutcomeMeta = {
+  outcomes: HlOutcomeSpec[];
+  questions: HlOutcomeQuestion[];
+};
 
 export type HlOpenOrder = {
   coin: string;

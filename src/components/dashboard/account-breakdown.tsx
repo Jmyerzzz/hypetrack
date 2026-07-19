@@ -47,6 +47,10 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
         <Row label="Total equity">{fmtUsd(overview.totalEquity)}</Row>
         <Row label="Perp equity">{fmtUsd(overview.perpEquity)}</Row>
         <Row label="Spot value">{fmtUsd(overview.spotValue)}</Row>
+        {/* Only shown when held, so perp-only accounts keep a tighter list. */}
+        {overview.outcomeValue > 0 && (
+          <Row label="Outcome markets">{fmtUsd(overview.outcomeValue)}</Row>
+        )}
         <Row label="Unrealized PnL">
           <Pnl value={overview.totalUnrealizedPnl} className="text-[13px]" />
         </Row>

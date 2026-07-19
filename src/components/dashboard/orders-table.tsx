@@ -5,11 +5,12 @@ import {
   CardList,
   DataCard,
   EmptyState,
+  MarketLabel,
   Td,
   Th,
   ViewToggle,
 } from "@/components/ui";
-import type { OrderView } from "@/lib/api-types";
+import type { OrderView, OutcomeMarketMap } from "@/lib/api-types";
 import { fmtPrice, fmtSize, fmtTime, fmtUsd } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
 
@@ -37,12 +38,18 @@ function OrderKind({ o }: { o: OrderView }) {
 const orderPrice = (o: OrderView): number =>
   o.isTrigger && o.triggerPx > 0 ? o.triggerPx : o.limitPx;
 
-function OrderCard({ o }: { o: OrderView }) {
+function OrderCard({
+  o,
+  markets,
+}: {
+  o: OrderView;
+  markets: OutcomeMarketMap;
+}) {
   return (
     <DataCard>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium text-ink">{o.coin}</p>
+          <MarketLabel coin={o.coin} market={markets[o.coin]} />
           <p className="text-[12px]">
             <span className={o.isBuy ? "text-upt" : "text-downt"}>
               {o.isBuy ? "Buy" : "Sell"}
@@ -82,7 +89,13 @@ function OrderCard({ o }: { o: OrderView }) {
   );
 }
 
-export function OrdersTable({ orders }: { orders: OrderView[] | undefined }) {
+export function OrdersTable({
+  orders,
+  markets,
+}: {
+  orders: OrderView[] | undefined;
+  markets: OutcomeMarketMap;
+}) {
   const [view, setView] = useViewMode();
   if (!orders || orders.length === 0) {
     return <EmptyState title="No open orders" />;
@@ -97,7 +110,7 @@ export function OrdersTable({ orders }: { orders: OrderView[] | undefined }) {
       {view === "cards" ? (
         <CardList minWidth={280}>
           {orders.map((o) => (
-            <OrderCard key={o.oid} o={o} />
+            <OrderCard key={o.oid} o={o} markets={markets} />
           ))}
         </CardList>
       ) : (
@@ -120,8 +133,8 @@ export function OrdersTable({ orders }: { orders: OrderView[] | undefined }) {
                   key={o.oid}
                   className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/40"
                 >
-                  <Td align="left" className="font-medium text-ink">
-                    {o.coin}
+                  <Td align="left">
+                    <MarketLabel coin={o.coin} market={markets[o.coin]} />
                   </Td>
                   <Td align="left">
                     <span className={o.isBuy ? "text-upt" : "text-downt"}>
