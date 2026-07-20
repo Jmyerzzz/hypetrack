@@ -92,16 +92,16 @@ export function PositionsTable({
             {fmtUsd(totalNotional, { compact: true })} notional · uPnL{" "}
             <Pnl value={totalUpnl} className="text-xs" />
           </p>
-          {/* Ruled off like the trade section's, so the icon reads as its own
-              action rather than floating between the totals and the toggle.
-              `-my-3` cancels the header's padding so the rule runs the full row
-              height as it does there — but only from `sm`, since this header
-              wraps onto two lines below that and a bled rule would then run up
-              into the title's line. */}
+          <ViewToggle value={view} onChange={setView} />
+          {/* Last in the row, so the rule closes off a corner cell holding the
+              refresh alone — the trade section's tab bar reads the same way,
+              with the view control left outside it. `-my-3` cancels the
+              header's padding so the rule runs the full row height as it does
+              there, but only from `sm`: this header wraps onto two lines below
+              that, where a bled rule would run up into the title's line. */}
           <div className="flex shrink-0 items-center self-stretch border-l border-edge pl-1.5 sm:-my-3">
             <RefreshButton onClick={onRefresh} refreshing={refreshing} />
           </div>
-          <ViewToggle value={view} onChange={setView} />
         </div>
       </div>
 
