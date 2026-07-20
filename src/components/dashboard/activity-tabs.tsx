@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { marketName, Pnl, Skeleton } from "@/components/ui";
+import { marketName, Pnl, RefreshButton, Skeleton } from "@/components/ui";
 import type {
   ActivityPayload,
   OrderView,
@@ -177,6 +177,8 @@ export function ActivityTabs({
   onRetry,
   openOrders,
   orderMarkets,
+  onRefresh,
+  refreshing,
 }: {
   activity: ActivityPayload | undefined;
   pending: boolean;
@@ -185,6 +187,8 @@ export function ActivityTabs({
   openOrders: OrderView[] | undefined;
   /** Outcome markets for the open orders, which come from the overview call. */
   orderMarkets: OutcomeMarketMap | undefined;
+  onRefresh: () => void;
+  refreshing: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("trades");
 
@@ -214,27 +218,36 @@ export function ActivityTabs({
 
   return (
     <section className="card overflow-hidden">
-      <div className="scroll-thin flex items-center gap-1 overflow-x-auto border-b border-edge px-2">
-        {tabs.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => setTab(t.value)}
-            className={`relative flex shrink-0 items-center gap-1.5 px-3 py-3 text-[13px] font-medium transition-colors ${
-              tab === t.value ? "text-ink" : "text-ink3 hover:text-ink2"
-            }`}
-          >
-            {t.label}
-            {t.count != null && (
-              <span className="num rounded-md bg-panel2 px-1.5 py-0.5 text-[10px] text-ink3">
-                {t.count.toLocaleString()}
-              </span>
-            )}
-            {tab === t.value && (
-              <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-accent" />
-            )}
-          </button>
-        ))}
+      {/* The refresh control sits outside the scroller so it stays reachable
+        however far the tab strip is scrolled on a phone. */}
+      <div className="flex items-center border-b border-edge pr-2">
+        <div className="scroll-thin flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2">
+          {tabs.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setTab(t.value)}
+              className={`relative flex shrink-0 items-center gap-1.5 px-3 py-3 text-[13px] font-medium transition-colors ${
+                tab === t.value ? "text-ink" : "text-ink3 hover:text-ink2"
+              }`}
+            >
+              {t.label}
+              {t.count != null && (
+                <span className="num rounded-md bg-panel2 px-1.5 py-0.5 text-[10px] text-ink3">
+                  {t.count.toLocaleString()}
+                </span>
+              )}
+              {tab === t.value && (
+                <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-accent" />
+              )}
+            </button>
+          ))}
+        </div>
+        {/* Ruled off so the pinned icon doesn't read as part of whichever tab
+            happens to be scrolled up against it. */}
+        <div className="flex shrink-0 items-center self-stretch border-l border-edge pl-1.5">
+          <RefreshButton onClick={onRefresh} refreshing={refreshing} />
+        </div>
       </div>
 
       {error ? (

@@ -7,6 +7,7 @@ import {
   DataCard,
   DirectionBadge,
   Pnl,
+  RefreshButton,
   Td,
   Th,
   ViewToggle,
@@ -64,7 +65,15 @@ function PositionCard({ p }: { p: PositionView }) {
   );
 }
 
-export function PositionsTable({ positions }: { positions: PositionView[] }) {
+export function PositionsTable({
+  positions,
+  onRefresh,
+  refreshing,
+}: {
+  positions: PositionView[];
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
   const [view, setView] = useViewMode();
   const totalUpnl = positions.reduce((a, p) => a + p.unrealizedPnl, 0);
   const totalNotional = positions.reduce((a, p) => a + p.positionValue, 0);
@@ -78,11 +87,12 @@ export function PositionsTable({ positions }: { positions: PositionView[] }) {
             {positions.length}
           </span>
         </h2>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <p className="num text-xs text-ink2">
             {fmtUsd(totalNotional, { compact: true })} notional · uPnL{" "}
             <Pnl value={totalUpnl} className="text-xs" />
           </p>
+          <RefreshButton onClick={onRefresh} refreshing={refreshing} />
           <ViewToggle value={view} onChange={setView} />
         </div>
       </div>

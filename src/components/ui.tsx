@@ -407,6 +407,52 @@ export function ViewToggle({
 }
 
 /**
+ * Refetch control. Section headers take the bare icon; the page header passes
+ * `labelled` for a text label, which still drops away on phones where that row
+ * is already competing with the address for width.
+ */
+export function RefreshButton({
+  onClick,
+  refreshing,
+  labelled = false,
+}: {
+  onClick: () => void;
+  refreshing: boolean;
+  labelled?: boolean;
+}) {
+  const label = refreshing ? "Refreshing" : "Refresh";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={refreshing}
+      title={label}
+      // The visible label comes and goes with the viewport, so the accessible
+      // name is pinned here rather than left to the text node.
+      aria-label={label}
+      className={`shrink-0 transition-colors disabled:opacity-60 ${
+        labelled
+          ? "inline-flex items-center gap-1.5 rounded-lg border border-edge bg-panel px-2.5 py-1.5 text-xs font-medium text-ink2 hover:border-edge2 hover:text-ink max-sm:px-2.5 max-sm:py-2.5"
+          : "rounded-md p-2 text-ink3 hover:bg-panel2 hover:text-ink max-sm:p-2.5"
+      }`}
+    >
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        className={`size-3.5 ${refreshing ? "animate-spin" : ""}`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path d="M21 12a9 9 0 1 1-2.64-6.36" strokeLinecap="round" />
+        <path d="M21 3v6h-6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {labelled && <span className="max-sm:hidden">{label}</span>}
+    </button>
+  );
+}
+
+/**
  * One record rendered as a card; the card-view counterpart of a table row.
  * Intentionally non-interactive — cards that expand put a real <button>
  * inside so the control is focusable and announced. `span` widens a card to
