@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { AddressForm } from "@/components/address-form";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Skeleton } from "@/components/ui";
+import { RefreshButton, Skeleton } from "@/components/ui";
 import { fmtAgo, shortAddress } from "@/lib/format";
 import { rememberAddress, useActivity, useOverview } from "@/lib/hooks";
 import { AccountBreakdown } from "./account-breakdown";
@@ -32,7 +32,7 @@ function CopyButton({ text }: { text: string }) {
           /* clipboard unavailable */
         }
       }}
-      className="rounded-md p-2 text-ink3 transition-colors hover:bg-panel2 hover:text-ink"
+      className="shrink-0 rounded-md p-2 text-ink3 transition-colors hover:bg-panel2 hover:text-ink"
     >
       {copied ? (
         <svg
@@ -73,7 +73,11 @@ function UpdatedAgo({ ts }: { ts: number }) {
     const id = setInterval(() => tick((n) => n + 1), 5000);
     return () => clearInterval(id);
   }, []);
-  return <span className="num text-xs text-ink3">updated {fmtAgo(ts)}</span>;
+  return (
+    <span className="num whitespace-nowrap text-xs text-ink3">
+      updated {fmtAgo(ts)}
+    </span>
+  );
 }
 
 export function Dashboard({ address }: { address: string }) {
@@ -111,9 +115,11 @@ export function Dashboard({ address }: { address: string }) {
       </header>
 
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-5 px-5 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5">
-            <h1 className="num text-sm text-ink" title={address}>
+        {/* Deliberately nowrap: the address truncates instead, which keeps the
+            refresh control on the title's line at every phone width. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h1 className="num truncate text-sm text-ink" title={address}>
               <span className="hidden sm:inline">{address}</span>
               <span className="sm:hidden">{shortAddress(address)}</span>
             </h1>
@@ -123,7 +129,7 @@ export function Dashboard({ address }: { address: string }) {
               target="_blank"
               rel="noreferrer"
               title="View on Hyperliquid explorer"
-              className="rounded-md p-2 text-ink3 transition-colors hover:bg-panel2 hover:text-ink"
+              className="shrink-0 rounded-md p-2 text-ink3 transition-colors hover:bg-panel2 hover:text-ink"
             >
               <svg
                 aria-hidden="true"
@@ -147,31 +153,13 @@ export function Dashboard({ address }: { address: string }) {
               <span className="sr-only">View on explorer</span>
             </a>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             {overview.data && <UpdatedAgo ts={overview.data.fetchedAt} />}
-            <button
-              type="button"
+            <RefreshButton
               onClick={refreshAll}
-              disabled={refreshing}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-edge bg-panel px-2.5 py-1.5 text-xs font-medium text-ink2 transition-colors hover:border-edge2 hover:text-ink disabled:opacity-60 max-sm:px-3 max-sm:py-2"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                className={`size-3.5 ${refreshing ? "animate-spin" : ""}`}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 12a9 9 0 1 1-2.64-6.36" strokeLinecap="round" />
-                <path
-                  d="M21 3v6h-6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              {refreshing ? "Refreshing" : "Refresh"}
-            </button>
+              refreshing={refreshing}
+              labelled
+            />
           </div>
         </div>
 
@@ -229,7 +217,11 @@ export function Dashboard({ address }: { address: string }) {
             </div>
 
             {overview.data && overview.data.positions.length > 0 && (
-              <PositionsTable positions={overview.data.positions} />
+              <PositionsTable
+                positions={overview.data.positions}
+                onRefresh={refreshAll}
+                refreshing={refreshing}
+              />
             )}
 
             {overview.data && overview.data.outcomePositions.length > 0 && (
@@ -246,6 +238,8 @@ export function Dashboard({ address }: { address: string }) {
               onRetry={() => activity.refetch()}
               openOrders={overview.data?.openOrders}
               orderMarkets={overview.data?.outcomeMarkets}
+              onRefresh={refreshAll}
+              refreshing={refreshing}
             />
           </>
         )}
