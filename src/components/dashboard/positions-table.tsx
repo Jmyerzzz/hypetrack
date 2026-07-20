@@ -8,12 +8,12 @@ import {
   DataCard,
   DirectionBadge,
   EmptyState,
+  FilterRow,
   FilterSelect,
   Pnl,
   RefreshButton,
   Td,
   Th,
-  ViewToggle,
 } from "@/components/ui";
 import type { PositionView } from "@/lib/api-types";
 import { fmtPrice, fmtSize, fmtUsd } from "@/lib/format";
@@ -119,34 +119,37 @@ export function PositionsTable({
 
   return (
     <section className="card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge px-4 py-3">
-        <h2 className="text-sm font-semibold">
-          Open positions
-          <span className="ml-2 text-xs font-normal text-ink3">
-            {positions.length}
-          </span>
-        </h2>
-        <div className="flex items-center gap-2 sm:gap-3">
+      {/* Title and totals share a line on desktop and stack on a phone, where
+          side by side they used to wrap and strand the refresh mid-row. The
+          padding lives on the children rather than this row so the refresh cell
+          can span its full height, which is also how the trade section's tab
+          bar is built — `pl-1.5` here against `pr-2` there makes the two cells
+          the same size. */}
+      <div className="flex items-stretch border-b border-edge pr-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1 py-3 pr-2 pl-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <h2 className="text-sm font-semibold">
+            Open positions
+            <span className="ml-2 text-xs font-normal text-ink3">
+              {positions.length}
+            </span>
+          </h2>
           <p className="num text-xs text-ink2">
             {fmtUsd(totalNotional, { compact: true })} notional · uPnL{" "}
             <Pnl value={totalUpnl} className="text-xs" />
           </p>
-          {/* Last in the row, so the rule closes off a corner cell holding the
-              refresh alone — the trade section's tab bar reads the same way,
-              with the view control left outside it. `pl-4` matches the header's
-              own `px-4`, which is what sits on the icon's other side; the trade
-              section pairs a narrower `pl-1.5` with its `pr-2` for the same
-              reason. `-my-3` cancels the header's padding so the rule runs the
-              full row height as it does there, but only from `sm`: this header
-              wraps onto two lines below that, where a bled rule would run up
-              into the title's line. */}
-          <div className="flex shrink-0 items-center self-stretch border-l border-edge pl-4 sm:-my-3">
-            <RefreshButton onClick={onRefresh} refreshing={refreshing} />
-          </div>
+        </div>
+        <div className="flex shrink-0 items-center self-stretch border-l border-edge pl-1.5">
+          <RefreshButton onClick={onRefresh} refreshing={refreshing} />
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-edge px-4 py-3">
+      <FilterRow
+        view={view}
+        onViewChange={setView}
+        count={`${filtered.length} of ${positions.length} position${
+          positions.length === 1 ? "" : "s"
+        }`}
+      >
         <FilterSelect
           value={coinFilter}
           onChange={setCoinFilter}
@@ -188,12 +191,7 @@ export function PositionsTable({
           <option value="long">Long</option>
           <option value="short">Short</option>
         </FilterSelect>
-        <span className="ml-auto text-xs text-ink3">
-          {filtered.length} of {positions.length} position
-          {positions.length === 1 ? "" : "s"}
-        </span>
-        <ViewToggle value={view} onChange={setView} />
-      </div>
+      </FilterRow>
 
       {filtered.length === 0 ? (
         <EmptyState
