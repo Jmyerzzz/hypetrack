@@ -188,10 +188,21 @@ function toOutcomePositions(
 }
 
 export async function buildOverview(address: string): Promise<OverviewPayload> {
-  // Enumerated first (cached, usually a hit) so the per-DEX clearinghouse
-  // queries can fan out alongside everything else. A failure here degrades to
-  // main-DEX only rather than sinking the whole overview.
-  const builderDexNames = await getBuilderDexNames().catch(() => []);
+  // HIP-3 builder perps live in their own clearinghouses. Enumerate the DEXs
+  // (cached, usually a hit) then query one book each — kept as a single chained
+  // promise so the whole thing runs inside the Promise.all alongside every
+  // other call, rather than the enumeration round-trip blocking them first.
+  // A single builder's failure drops just that book; enumeration failure
+  // degrades to main-DEX only. Neither sinks the page.
+  const builderStatesPromise = getBuilderDexNames()
+    .catch(() => [])
+    .then((names) =>
+      Promise.all(
+        names.map((dex) =>
+          fetchClearinghouseState(address, dex).catch(() => null),
+        ),
+      ),
+    );
 
   const [
     clearinghouse,
@@ -204,13 +215,7 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     outcomeIndex,
   ] = await Promise.all([
     fetchClearinghouseState(address),
-    // HIP-3 builder perps live in their own clearinghouses; one query each,
-    // and a single builder's failure just drops that book, not the page.
-    Promise.all(
-      builderDexNames.map((dex) =>
-        fetchClearinghouseState(address, dex).catch(() => null),
-      ),
-    ),
+    builderStatesPromise,
     fetchPortfolio(address),
     fetchOpenOrders(address),
     fetchSpotClearinghouseState(address),
