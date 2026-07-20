@@ -149,8 +149,10 @@ export function CoinTag({ coin, sub }: { coin: string; sub?: string | null }) {
       <span className="min-w-0">
         <span className="block truncate font-medium text-ink">{display}</span>
         {(dex || sub) && (
+          // Sub first, DEX last: "10× isolated · xyz" reads the position's own
+          // detail before the venue it trades on.
           <span className="block truncate text-[11px] text-ink3">
-            {[dex, sub].filter(Boolean).join(" · ")}
+            {[sub, dex].filter(Boolean).join(" · ")}
           </span>
         )}
       </span>
