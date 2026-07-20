@@ -344,6 +344,35 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   );
 }
 
+/**
+ * One dropdown in a list's filter row. Shared so the positions and trades
+ * rows can't drift apart; the larger touch-target sizing below `sm` is why
+ * the class list is worth keeping in one place.
+ */
+export function FilterSelect({
+  value,
+  onChange,
+  label,
+  children,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  /** Accessible name — these sit unlabelled in the row. */
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={label}
+      className="rounded-lg border border-edge bg-inset px-3 py-2 text-base text-ink2 focus:border-accent/60 focus:outline-none sm:px-2.5 sm:py-1.5 sm:text-xs"
+    >
+      {children}
+    </select>
+  );
+}
+
 /** Switches a data list between the dense table and stacked cards. */
 export function ViewToggle({
   value,
