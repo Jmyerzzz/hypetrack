@@ -94,6 +94,16 @@ export type HlClearinghouseState = {
   time: number;
 };
 
+/**
+ * One entry from `perpDexs`: a HIP-3 builder-deployed perp DEX. The endpoint
+ * returns the main book as a leading `null`, then one object per builder DEX.
+ */
+export type HlPerpDex = {
+  name: string;
+  fullName: string;
+  deployer: string;
+} | null;
+
 export type HlSpotBalance = {
   coin: string;
   /** Absent on HIP-4 outcome balances (`+8560`), which are not spot tokens. */

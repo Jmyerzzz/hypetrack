@@ -7,6 +7,7 @@ import type {
   HlLedgerUpdate,
   HlOpenOrder,
   HlOutcomeMeta,
+  HlPerpDex,
   HlPortfolio,
   HlSpotClearinghouseState,
   HlSpotMetaAndAssetCtxs,
@@ -149,10 +150,25 @@ export async function fetchLedgerUpdates(
   );
 }
 
+/**
+ * Perp positions and margin for one book. Without `dex` this is the main perp
+ * DEX; passing a HIP-3 builder DEX name (from {@link fetchPerpDexs}) returns
+ * that builder's separate book, which the main query never includes.
+ */
 export async function fetchClearinghouseState(
   user: string,
+  dex?: string,
 ): Promise<HlClearinghouseState> {
-  return hlInfo<HlClearinghouseState>({ type: "clearinghouseState", user });
+  return hlInfo<HlClearinghouseState>({
+    type: "clearinghouseState",
+    user,
+    ...(dex ? { dex } : {}),
+  });
+}
+
+/** Every perp DEX: a leading `null` main book, then the HIP-3 builder DEXs. */
+export async function fetchPerpDexs(): Promise<HlPerpDex[]> {
+  return hlInfo<HlPerpDex[]>({ type: "perpDexs" });
 }
 
 export async function fetchPortfolio(user: string): Promise<HlPortfolio> {

@@ -23,18 +23,44 @@ import {
 import { buildSpotTokenInfo, type SpotTokenInfo } from "../hyperliquid/spot";
 import type {
   HlAllMids,
+  HlAssetPosition,
+  HlClearinghouseState,
   HlOpenOrder,
   HlPortfolio,
   HlSpotBalance,
 } from "../hyperliquid/types";
 import { computeRiskMetrics, returnOnAvgEquity } from "../risk";
 import { isSpotCoin } from "../trades";
-import { getAllMids, getOutcomeIndex } from "./markets";
+import { getAllMids, getBuilderDexNames, getOutcomeIndex } from "./markets";
 
 const num = (s: string | number | null | undefined): number => {
   const v = Number(s);
   return Number.isFinite(v) ? v : 0;
 };
+
+/** One perp position (main or builder DEX) to its view; builder coins arrive
+ *  already namespaced (`xyz:SKHX`), which the coin tag renders on its own. */
+function toPositionView(p: HlAssetPosition["position"]): PositionView {
+  const szi = num(p.szi);
+  const positionValue = num(p.positionValue);
+  return {
+    coin: p.coin,
+    szi,
+    direction: szi >= 0 ? "long" : "short",
+    entryPx: num(p.entryPx),
+    markPx: Math.abs(szi) > 0 ? positionValue / Math.abs(szi) : null,
+    positionValue,
+    unrealizedPnl: num(p.unrealizedPnl),
+    roe: num(p.returnOnEquity),
+    liquidationPx: p.liquidationPx == null ? null : num(p.liquidationPx),
+    marginUsed: num(p.marginUsed),
+    leverage: p.leverage.value,
+    leverageType: p.leverage.type,
+    maxLeverage: p.maxLeverage,
+    // cumFunding is the amount paid by the position; negate → net received.
+    fundingSinceOpen: -num(p.cumFunding.sinceOpen),
+  };
+}
 
 /** USDC is always spot token 0 and is the perp collateral asset. */
 const USDC_TOKEN_INDEX = 0;
@@ -162,8 +188,25 @@ function toOutcomePositions(
 }
 
 export async function buildOverview(address: string): Promise<OverviewPayload> {
+  // HIP-3 builder perps live in their own clearinghouses. Enumerate the DEXs
+  // (cached, usually a hit) then query one book each — kept as a single chained
+  // promise so the whole thing runs inside the Promise.all alongside every
+  // other call, rather than the enumeration round-trip blocking them first.
+  // A single builder's failure drops just that book; enumeration failure
+  // degrades to main-DEX only. Neither sinks the page.
+  const builderStatesPromise = getBuilderDexNames()
+    .catch(() => [])
+    .then((names) =>
+      Promise.all(
+        names.map((dex) =>
+          fetchClearinghouseState(address, dex).catch(() => null),
+        ),
+      ),
+    );
+
   const [
     clearinghouse,
+    builderStates,
     portfolio,
     openOrders,
     spotState,
@@ -172,6 +215,7 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     outcomeIndex,
   ] = await Promise.all([
     fetchClearinghouseState(address),
+    builderStatesPromise,
     fetchPortfolio(address),
     fetchOpenOrders(address),
     fetchSpotClearinghouseState(address),
@@ -179,6 +223,12 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     getAllMids(),
     getOutcomeIndex(),
   ]);
+
+  // Only the builder books this account actually uses; the rest come back empty.
+  const builderBooks = builderStates.filter(
+    (s): s is HlClearinghouseState => s != null,
+  );
+  const perpBooks = [clearinghouse, ...builderBooks];
 
   // HIP-4 outcome sides ride along in the spot balance list as `+8560`, but
   // they are a separate asset class: priced off their own book, not the spot
@@ -210,68 +260,64 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     0,
   );
 
-  const positions: PositionView[] = clearinghouse.assetPositions
-    .map(({ position: p }) => {
-      const szi = num(p.szi);
-      const positionValue = num(p.positionValue);
-      return {
-        coin: p.coin,
-        szi,
-        direction: szi >= 0 ? ("long" as const) : ("short" as const),
-        entryPx: num(p.entryPx),
-        markPx: Math.abs(szi) > 0 ? positionValue / Math.abs(szi) : null,
-        positionValue,
-        unrealizedPnl: num(p.unrealizedPnl),
-        roe: num(p.returnOnEquity),
-        liquidationPx: p.liquidationPx == null ? null : num(p.liquidationPx),
-        marginUsed: num(p.marginUsed),
-        leverage: p.leverage.value,
-        leverageType: p.leverage.type,
-        maxLeverage: p.maxLeverage,
-        // cumFunding is the amount paid by the position; negate → net received.
-        fundingSinceOpen: -num(p.cumFunding.sinceOpen),
-      };
-    })
+  const positions: PositionView[] = perpBooks
+    .flatMap((book) => book.assetPositions)
+    .map(({ position }) => toPositionView(position))
     .sort((a, b) => b.positionValue - a.positionValue);
 
   const series = toSeries(portfolio);
 
-  const perpEquity = num(clearinghouse.marginSummary.accountValue);
+  // Perp equity spans every book: the main DEX plus each HIP-3 builder DEX,
+  // which hold their collateral separately. Their sum matches Hyperliquid's own
+  // aggregated `perpDay` account value.
+  const mainPerpEquity = num(clearinghouse.marginSummary.accountValue);
+  const builderPerpEquity = builderBooks.reduce(
+    (a, b) => a + num(b.marginSummary.accountValue),
+    0,
+  );
+  const perpEquity = mainPerpEquity + builderPerpEquity;
 
   // On current Hyperliquid accounts the spot USDC balance already contains
-  // the USDC committed to perps (marked to perp equity), so summing perp +
-  // spot double-counts. Calibrate against Hyperliquid's own combined
-  // account-value series: if (perp + spot) overshoots it by ≈ perpEquity,
-  // the spot value is perp-inclusive and IS the total equity.
+  // the USDC committed to *main-DEX* perps (marked to perp equity), so summing
+  // perp + spot double-counts. Calibrate against Hyperliquid's own combined
+  // account-value series: if (perp + spot) overshoots it by ≈ perpEquity, the
+  // spot value is perp-inclusive and IS the total equity.
   const combinedHist = new Map(portfolio).get("day")?.accountValueHistory ?? [];
   const hlCombined = combinedHist.length
     ? num(combinedHist[combinedHist.length - 1][1])
     : 0;
+  // Builder-DEX collateral is held in its own clearinghouse — never mirrored in
+  // spot USDC — so the double-count only ever concerns the main DEX. Strip
+  // builder equity from both sides of the test, resolve the main/spot overlap,
+  // then add builder equity back on top.
+  const hlMainCombined = hlCombined - builderPerpEquity;
   // Outcome holdings count toward the value Hyperliquid charts, so they belong
   // in the sum being calibrated — omitting them would read as an overlap and
   // understate total equity by the whole outcome book.
   const nonPerpValue = rawSpotValue + outcomeValue;
-  const naiveSum = perpEquity + nonPerpValue;
-  let totalEquity = naiveSum;
+  const naiveSum = mainPerpEquity + nonPerpValue;
+  let baseTotal = naiveSum;
   let spotIncludesPerpCollateral = false;
-  if (hlCombined > 0) {
-    const overlap = naiveSum - hlCombined;
-    if (Math.abs(overlap - perpEquity) < Math.abs(overlap)) {
-      totalEquity = nonPerpValue;
+  if (hlMainCombined > 0) {
+    const overlap = naiveSum - hlMainCombined;
+    if (Math.abs(overlap - mainPerpEquity) < Math.abs(overlap)) {
+      baseTotal = nonPerpValue;
       spotIncludesPerpCollateral = true;
     }
   }
+  const totalEquity = baseTotal + builderPerpEquity;
 
   // When the spot USDC balance carries the collateral posted to perps, net it
   // out of the displayed USDC row too — otherwise the listed balances can't
-  // reconcile with the reported spot value.
+  // reconcile with the reported spot value. Only main-DEX collateral rides in
+  // spot USDC, so only that is netted out.
   const spotBalances = rawSpotBalances
     .map((b) =>
       spotIncludesPerpCollateral && b.token === USDC_TOKEN_INDEX
         ? {
             ...b,
-            total: Math.max(0, b.total - perpEquity),
-            usdValue: Math.max(0, (b.usdValue ?? 0) - perpEquity),
+            total: Math.max(0, b.total - mainPerpEquity),
+            usdValue: Math.max(0, (b.usdValue ?? 0) - mainPerpEquity),
           }
         : b,
     )
@@ -299,10 +345,23 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
       ],
       outcomeIndex,
     ),
+    // Withdrawable is a main-DEX figure — builder collateral must be moved back
+    // there before it can leave — so it stays main-only.
     withdrawable: num(clearinghouse.withdrawable),
-    marginUsed: num(clearinghouse.marginSummary.totalMarginUsed),
-    totalNtlPos: num(clearinghouse.marginSummary.totalNtlPos),
-    maintenanceMarginUsed: num(clearinghouse.crossMaintenanceMarginUsed),
+    // Margin and notional span every book, to stay consistent with the merged
+    // positions list and its unrealized PnL.
+    marginUsed: perpBooks.reduce(
+      (a, b) => a + num(b.marginSummary.totalMarginUsed),
+      0,
+    ),
+    totalNtlPos: perpBooks.reduce(
+      (a, b) => a + num(b.marginSummary.totalNtlPos),
+      0,
+    ),
+    maintenanceMarginUsed: perpBooks.reduce(
+      (a, b) => a + num(b.crossMaintenanceMarginUsed),
+      0,
+    ),
     totalUnrealizedPnl: positions.reduce((a, p) => a + p.unrealizedPnl, 0),
     positions,
     openOrders: flatOrders,
