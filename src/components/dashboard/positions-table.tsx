@@ -95,11 +95,14 @@ export function PositionsTable({
           <ViewToggle value={view} onChange={setView} />
           {/* Last in the row, so the rule closes off a corner cell holding the
               refresh alone — the trade section's tab bar reads the same way,
-              with the view control left outside it. `-my-3` cancels the
-              header's padding so the rule runs the full row height as it does
-              there, but only from `sm`: this header wraps onto two lines below
-              that, where a bled rule would run up into the title's line. */}
-          <div className="flex shrink-0 items-center self-stretch border-l border-edge pl-1.5 sm:-my-3">
+              with the view control left outside it. `pl-4` matches the header's
+              own `px-4`, which is what sits on the icon's other side; the trade
+              section pairs a narrower `pl-1.5` with its `pr-2` for the same
+              reason. `-my-3` cancels the header's padding so the rule runs the
+              full row height as it does there, but only from `sm`: this header
+              wraps onto two lines below that, where a bled rule would run up
+              into the title's line. */}
+          <div className="flex shrink-0 items-center self-stretch border-l border-edge pl-4 sm:-my-3">
             <RefreshButton onClick={onRefresh} refreshing={refreshing} />
           </div>
         </div>
