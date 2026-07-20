@@ -8,6 +8,7 @@ import {
   DirectionBadge,
   EmptyState,
   ExplorerLink,
+  FilterSelect,
   MarketTag,
   Pnl,
   ResultBadge,
@@ -433,8 +434,6 @@ export function TradesTable({
   const shown = filtered.slice(0, visible);
   const toggle = (id: string) =>
     setExpanded((current) => (current === id ? null : id));
-  const selectClass =
-    "rounded-lg border border-edge bg-inset px-3 py-2 text-base text-ink2 focus:border-accent/60 focus:outline-none sm:px-2.5 sm:py-1.5 sm:text-xs";
 
   if (trades.length === 0) {
     return (
@@ -448,14 +447,13 @@ export function TradesTable({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 border-b border-edge px-4 py-3">
-        <select
+        <FilterSelect
           value={coinFilter}
-          onChange={(e) => {
-            setCoinFilter(e.target.value);
+          onChange={(v) => {
+            setCoinFilter(v);
             setVisible(PAGE);
           }}
-          className={selectClass}
-          aria-label="Filter by market"
+          label="Filter by market"
         >
           <option value="all">All markets</option>
           {coins.map(([coin, label]) => (
@@ -463,51 +461,48 @@ export function TradesTable({
               {label}
             </option>
           ))}
-        </select>
+        </FilterSelect>
         {/* Only worth a control once the account actually has both kinds. */}
         {hasOutcome && (
-          <select
+          <FilterSelect
             value={kindFilter}
-            onChange={(e) => {
-              setKindFilter(e.target.value as KindFilter);
+            onChange={(v) => {
+              setKindFilter(v as KindFilter);
               setVisible(PAGE);
             }}
-            className={selectClass}
-            aria-label="Filter by market type"
+            label="Filter by market type"
           >
             <option value="all">Perps &amp; outcomes</option>
             <option value="perp">Perps only</option>
             <option value="outcome">Outcome markets</option>
-          </select>
+          </FilterSelect>
         )}
-        <select
+        <FilterSelect
           value={resultFilter}
-          onChange={(e) => {
-            setResultFilter(e.target.value as ResultFilter);
+          onChange={(v) => {
+            setResultFilter(v as ResultFilter);
             setVisible(PAGE);
           }}
-          className={selectClass}
-          aria-label="Filter by result"
+          label="Filter by result"
         >
           <option value="all">All results</option>
           <option value="wins">Wins</option>
           <option value="losses">Losses</option>
           <option value="open">Open</option>
           <option value="liquidated">Liquidated</option>
-        </select>
-        <select
+        </FilterSelect>
+        <FilterSelect
           value={dirFilter}
-          onChange={(e) => {
-            setDirFilter(e.target.value as DirFilter);
+          onChange={(v) => {
+            setDirFilter(v as DirFilter);
             setVisible(PAGE);
           }}
-          className={selectClass}
-          aria-label="Filter by direction"
+          label="Filter by direction"
         >
           <option value="all">Long &amp; short</option>
           <option value="long">Long</option>
           <option value="short">Short</option>
-        </select>
+        </FilterSelect>
         <span className="ml-auto text-xs text-ink3">
           {filtered.length} of {tradesTotal} trades
         </span>

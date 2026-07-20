@@ -1,11 +1,14 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import {
   CardField,
   CardList,
   CoinTag,
   DataCard,
   DirectionBadge,
+  EmptyState,
+  FilterSelect,
   Pnl,
   RefreshButton,
   Td,
@@ -15,6 +18,10 @@ import {
 import type { PositionView } from "@/lib/api-types";
 import { fmtPrice, fmtSize, fmtUsd } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
+
+type PnlFilter = "all" | "profit" | "loss";
+type DirFilter = "all" | "long" | "short";
+type MarginFilter = "all" | "cross" | "isolated";
 
 function PositionCard({ p }: { p: PositionView }) {
   return (
@@ -75,8 +82,40 @@ export function PositionsTable({
   refreshing: boolean;
 }) {
   const [view, setView] = useViewMode();
+  const [coinFilter, setCoinFilter] = useState("all");
+  const [marginFilter, setMarginFilter] = useState<MarginFilter>("all");
+  const [pnlFilter, setPnlFilter] = useState<PnlFilter>("all");
+  const [dirFilter, setDirFilter] = useState<DirFilter>("all");
+
+  // Account-level totals, deliberately unfiltered: they summarise the whole
+  // book, the way the trade section's performance strip sits above its row.
   const totalUpnl = positions.reduce((a, p) => a + p.unrealizedPnl, 0);
   const totalNotional = positions.reduce((a, p) => a + p.positionValue, 0);
+
+  const coins = useMemo(
+    () => [...new Set(positions.map((p) => p.coin))].sort(),
+    [positions],
+  );
+
+  // Only worth a control once the account actually holds both kinds.
+  const hasBothMargins = useMemo(
+    () => new Set(positions.map((p) => p.leverageType)).size > 1,
+    [positions],
+  );
+
+  const filtered = useMemo(
+    () =>
+      positions.filter((p) => {
+        if (coinFilter !== "all" && p.coin !== coinFilter) return false;
+        if (marginFilter !== "all" && p.leverageType !== marginFilter)
+          return false;
+        if (dirFilter !== "all" && p.direction !== dirFilter) return false;
+        if (pnlFilter === "profit") return p.unrealizedPnl > 0;
+        if (pnlFilter === "loss") return p.unrealizedPnl < 0;
+        return true;
+      }),
+    [positions, coinFilter, marginFilter, dirFilter, pnlFilter],
+  );
 
   return (
     <section className="card overflow-hidden">
@@ -92,7 +131,6 @@ export function PositionsTable({
             {fmtUsd(totalNotional, { compact: true })} notional · uPnL{" "}
             <Pnl value={totalUpnl} className="text-xs" />
           </p>
-          <ViewToggle value={view} onChange={setView} />
           {/* Last in the row, so the rule closes off a corner cell holding the
               refresh alone — the trade section's tab bar reads the same way,
               with the view control left outside it. `pl-4` matches the header's
@@ -108,9 +146,63 @@ export function PositionsTable({
         </div>
       </div>
 
-      {view === "cards" ? (
+      <div className="flex flex-wrap items-center gap-2 border-b border-edge px-4 py-3">
+        <FilterSelect
+          value={coinFilter}
+          onChange={setCoinFilter}
+          label="Filter by market"
+        >
+          <option value="all">All markets</option>
+          {coins.map((coin) => (
+            <option key={coin} value={coin}>
+              {coin}
+            </option>
+          ))}
+        </FilterSelect>
+        {hasBothMargins && (
+          <FilterSelect
+            value={marginFilter}
+            onChange={(v) => setMarginFilter(v as MarginFilter)}
+            label="Filter by margin mode"
+          >
+            <option value="all">Cross &amp; isolated</option>
+            <option value="cross">Cross only</option>
+            <option value="isolated">Isolated only</option>
+          </FilterSelect>
+        )}
+        <FilterSelect
+          value={pnlFilter}
+          onChange={(v) => setPnlFilter(v as PnlFilter)}
+          label="Filter by unrealized PnL"
+        >
+          <option value="all">All P&amp;L</option>
+          <option value="profit">In profit</option>
+          <option value="loss">At a loss</option>
+        </FilterSelect>
+        <FilterSelect
+          value={dirFilter}
+          onChange={(v) => setDirFilter(v as DirFilter)}
+          label="Filter by direction"
+        >
+          <option value="all">Long &amp; short</option>
+          <option value="long">Long</option>
+          <option value="short">Short</option>
+        </FilterSelect>
+        <span className="ml-auto text-xs text-ink3">
+          {filtered.length} of {positions.length} position
+          {positions.length === 1 ? "" : "s"}
+        </span>
+        <ViewToggle value={view} onChange={setView} />
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState
+          title="No positions match these filters"
+          hint="Widen a filter to see the rest of the open book."
+        />
+      ) : view === "cards" ? (
         <CardList minWidth={320}>
-          {positions.map((p) => (
+          {filtered.map((p) => (
             <PositionCard key={p.coin} p={p} />
           ))}
         </CardList>
@@ -131,7 +223,7 @@ export function PositionsTable({
               </tr>
             </thead>
             <tbody>
-              {positions.map((p) => (
+              {filtered.map((p) => (
                 <tr
                   key={p.coin}
                   className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/50"
