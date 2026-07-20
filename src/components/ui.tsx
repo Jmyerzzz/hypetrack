@@ -436,6 +436,34 @@ export function ViewToggle({
 }
 
 /**
+ * A list's filter row: the caller's dropdowns, then how many rows survived them
+ * and the view toggle. On a phone the dropdowns become an even two-column grid
+ * and the count and toggle take a full-width line of their own — left to wrap
+ * as flex items they leave the toggle stranded alone on a line.
+ */
+export function FilterRow({
+  children,
+  count,
+  view,
+  onViewChange,
+}: {
+  children: React.ReactNode;
+  count: React.ReactNode;
+  view: ViewMode;
+  onViewChange: (mode: ViewMode) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 items-center gap-2 border-b border-edge px-4 py-3 sm:flex sm:flex-wrap">
+      {children}
+      <div className="col-span-2 flex items-center justify-between gap-3 sm:ml-auto">
+        <span className="text-xs text-ink3">{count}</span>
+        <ViewToggle value={view} onChange={onViewChange} />
+      </div>
+    </div>
+  );
+}
+
+/**
  * Refetch control. Section headers take the bare icon; the page header passes
  * `labelled` for a text label, which still drops away on phones where that row
  * is already competing with the address for width.

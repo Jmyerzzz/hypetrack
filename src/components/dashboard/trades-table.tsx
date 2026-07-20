@@ -8,6 +8,7 @@ import {
   DirectionBadge,
   EmptyState,
   ExplorerLink,
+  FilterRow,
   FilterSelect,
   MarketTag,
   Pnl,
@@ -15,7 +16,6 @@ import {
   SideBadge,
   Td,
   Th,
-  ViewToggle,
 } from "@/components/ui";
 import type { OutcomeMarketMap, OutcomeMarketView } from "@/lib/api-types";
 import {
@@ -446,7 +446,11 @@ export function TradesTable({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 border-b border-edge px-4 py-3">
+      <FilterRow
+        view={view}
+        onViewChange={setView}
+        count={`${filtered.length} of ${tradesTotal} trades`}
+      >
         <FilterSelect
           value={coinFilter}
           onChange={(v) => {
@@ -503,11 +507,7 @@ export function TradesTable({
           <option value="long">Long</option>
           <option value="short">Short</option>
         </FilterSelect>
-        <span className="ml-auto text-xs text-ink3">
-          {filtered.length} of {tradesTotal} trades
-        </span>
-        <ViewToggle value={view} onChange={setView} />
-      </div>
+      </FilterRow>
 
       {view === "cards" ? (
         <CardList minWidth={340}>
