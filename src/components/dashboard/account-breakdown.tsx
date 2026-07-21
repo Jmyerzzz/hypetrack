@@ -22,15 +22,16 @@ function Row({
 export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
   const leverage =
     overview.perpEquity > 0 ? overview.totalNtlPos / overview.perpEquity : null;
-  // Margin utilization is measured against TOTAL equity: on accounts running
-  // isolated positions, the perp-side balance IS the margin (free cash sits
-  // in spot USDC), so a perp-only ratio would always read a meaningless 100%.
+  // Margin utilization is a perp-account measure: margin used against the perp
+  // equity that actually backs it. Spot USDC lives in a separate wallet and
+  // can't margin a perp position until it's transferred in, so it stays out of
+  // both the ratio and the free-collateral figure — folding it in read as spare
+  // buying power the perp book doesn't have. This tracks `withdrawable`: once
+  // the perp account is fully committed the ratio is 100% and free collateral
+  // is $0, even while spot USDC sits in the balances below.
   const marginRatio =
-    overview.totalEquity > 0 ? overview.marginUsed / overview.totalEquity : 0;
-  const freeCollateral = Math.max(
-    0,
-    overview.totalEquity - overview.marginUsed,
-  );
+    overview.perpEquity > 0 ? overview.marginUsed / overview.perpEquity : 0;
+  const freeCollateral = Math.max(0, overview.perpEquity - overview.marginUsed);
   // Distance to liquidation risk for cross positions: maintenance vs the
   // perp account value that backs them.
   const maintenanceRatio =
@@ -63,14 +64,14 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
         </Row>
         <div
           className="py-1.5"
-          title="USDC committed as position margin (isolated margin includes that position's unrealized PnL), as a share of your total equity. The remainder is free collateral you could add."
+          title="USDC committed as position margin (isolated margin includes that position's unrealized PnL), as a share of your perp-account equity. The remainder is free collateral you can open new positions with or withdraw. Spot USDC isn't counted — it must be transferred to the perp wallet first."
         >
           <div className="flex items-center justify-between gap-3">
             <span className="text-[13px] text-ink2">Margin used</span>
             <span className="num text-[13px] text-ink">
               {fmtUsd(overview.marginUsed)}
               <span className="ml-1.5 text-ink3">
-                ({(marginRatio * 100).toFixed(1)}% of equity)
+                ({(marginRatio * 100).toFixed(1)}% of perp equity)
               </span>
             </span>
           </div>
