@@ -23,6 +23,56 @@ type PnlFilter = "all" | "profit" | "loss";
 type DirFilter = "all" | "long" | "short";
 type MarginFilter = "all" | "cross" | "isolated";
 
+type SortKey =
+  | "roe-desc"
+  | "roe-asc"
+  | "pnl-desc"
+  | "pnl-asc"
+  | "value-desc"
+  | "margin-desc"
+  | "coin-asc";
+
+/**
+ * Sort methods offered in the filter row. Each carries its own comparator so
+ * the same ordering drives both the table and the card view, and so a new
+ * method is one entry rather than another branch. The trailing arrow (or A–Z)
+ * marks these as sorts beside the unadorned filter dropdowns; "% PnL" is roe
+ * and "PnL" the unrealized dollar figure — the two halves of the PnL column.
+ */
+const SORT_OPTIONS: {
+  value: SortKey;
+  label: string;
+  cmp: (a: PositionView, b: PositionView) => number;
+}[] = [
+  { value: "roe-desc", label: "% PnL ↓", cmp: (a, b) => b.roe - a.roe },
+  { value: "roe-asc", label: "% PnL ↑", cmp: (a, b) => a.roe - b.roe },
+  {
+    value: "pnl-desc",
+    label: "PnL ↓",
+    cmp: (a, b) => b.unrealizedPnl - a.unrealizedPnl,
+  },
+  {
+    value: "pnl-asc",
+    label: "PnL ↑",
+    cmp: (a, b) => a.unrealizedPnl - b.unrealizedPnl,
+  },
+  {
+    value: "value-desc",
+    label: "Value ↓",
+    cmp: (a, b) => b.positionValue - a.positionValue,
+  },
+  {
+    value: "margin-desc",
+    label: "Margin ↓",
+    cmp: (a, b) => b.marginUsed - a.marginUsed,
+  },
+  {
+    value: "coin-asc",
+    label: "Market A–Z",
+    cmp: (a, b) => a.coin.localeCompare(b.coin),
+  },
+];
+
 function PositionCard({ p }: { p: PositionView }) {
   return (
     <DataCard>
@@ -86,6 +136,7 @@ export function PositionsTable({
   const [marginFilter, setMarginFilter] = useState<MarginFilter>("all");
   const [pnlFilter, setPnlFilter] = useState<PnlFilter>("all");
   const [dirFilter, setDirFilter] = useState<DirFilter>("all");
+  const [sort, setSort] = useState<SortKey>("roe-desc");
 
   // Account-level totals, deliberately unfiltered: they summarise the whole
   // book, the way the trade section's performance strip sits above its row.
@@ -116,6 +167,15 @@ export function PositionsTable({
       }),
     [positions, coinFilter, marginFilter, dirFilter, pnlFilter],
   );
+
+  // Filters narrow the book; the sort orders what survives. Kept as its own
+  // pass so changing the sort doesn't re-run the filter predicate, and so the
+  // table and card views below both render the one ordered list. Spread first —
+  // Array.sort mutates, and `filtered` is a memoized array we must not disturb.
+  const sorted = useMemo(() => {
+    const cmp = SORT_OPTIONS.find((o) => o.value === sort)?.cmp;
+    return cmp ? [...filtered].sort(cmp) : filtered;
+  }, [filtered, sort]);
 
   return (
     <section className="card overflow-hidden">
@@ -191,6 +251,17 @@ export function PositionsTable({
           <option value="long">Long</option>
           <option value="short">Short</option>
         </FilterSelect>
+        <FilterSelect
+          value={sort}
+          onChange={(v) => setSort(v as SortKey)}
+          label="Sort positions"
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </FilterSelect>
       </FilterRow>
 
       {filtered.length === 0 ? (
@@ -200,7 +271,7 @@ export function PositionsTable({
         />
       ) : view === "cards" ? (
         <CardList minWidth={320}>
-          {filtered.map((p) => (
+          {sorted.map((p) => (
             <PositionCard key={p.coin} p={p} />
           ))}
         </CardList>
@@ -221,7 +292,7 @@ export function PositionsTable({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
+              {sorted.map((p) => (
                 <tr
                   key={p.coin}
                   className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/50"
