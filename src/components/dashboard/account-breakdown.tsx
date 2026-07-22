@@ -27,22 +27,20 @@ function Row({
 export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
   const leverage =
     overview.perpEquity > 0 ? overview.totalNtlPos / overview.perpEquity : null;
-  // Margin utilization is a perp-account measure: margin used against the perp
-  // equity that actually backs it. Spot USDC lives in a separate wallet and
-  // can't margin a perp position until it's transferred in, so it stays out of
-  // both the ratio and the free-collateral figure — folding it in read as spare
-  // buying power the perp book doesn't have. So once the perp account is fully
-  // committed the ratio is 100% and free collateral is $0, even while spot USDC
-  // sits withdrawable in the balances below.
+  // The unified account posts spot USDC as perp collateral directly (it is the
+  // account's available balance — no transfer step), so margin utilization is
+  // measured against the whole tradeable balance: perp equity plus spot value.
+  // Outcome-market holdings aren't collateral, so they're excluded. Free
+  // collateral is whatever of that balance isn't already posted as margin —
+  // i.e. the spot USDC still available to open new positions.
+  const tradeableEquity = overview.perpEquity + overview.spotValue;
   const marginRatio =
-    overview.perpEquity > 0 ? overview.marginUsed / overview.perpEquity : 0;
-  const freeCollateral = Math.max(0, overview.perpEquity - overview.marginUsed);
+    tradeableEquity > 0 ? overview.marginUsed / tradeableEquity : 0;
+  const freeCollateral = Math.max(0, tradeableEquity - overview.marginUsed);
   // Distance to liquidation risk for cross positions: maintenance vs the
-  // perp account value that backs them.
+  // tradeable balance that backs them.
   const maintenanceRatio =
-    overview.perpEquity > 0
-      ? overview.maintenanceMarginUsed / overview.perpEquity
-      : 0;
+    tradeableEquity > 0 ? overview.maintenanceMarginUsed / tradeableEquity : 0;
 
   return (
     <section className="card p-4">
@@ -74,14 +72,14 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
         </Row>
         <div
           className="py-1.5"
-          title="USDC committed as position margin (isolated margin includes that position's unrealized PnL), as a share of your perp-account equity. The remainder is free collateral you can open new positions with or withdraw. Spot USDC isn't counted — it must be transferred to the perp wallet first."
+          title="USDC committed as position margin (isolated margin includes that position's unrealized PnL), as a share of your total tradeable balance — perp equity plus spot USDC, which the unified account can post as collateral directly. The remainder is free collateral you can open new positions with or withdraw."
         >
           <div className="flex items-center justify-between gap-3">
             <span className="text-[13px] text-ink2">Margin used</span>
             <span className="num text-[13px] text-ink">
               {fmtUsd(overview.marginUsed)}
               <span className="ml-1.5 text-ink3">
-                ({(marginRatio * 100).toFixed(1)}% of perp equity)
+                ({(marginRatio * 100).toFixed(1)}% of account equity)
               </span>
             </span>
           </div>
