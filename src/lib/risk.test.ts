@@ -3,8 +3,8 @@ import type { PortfolioPoint } from "./api-types";
 import { computeTradeExcursion, pickCandleInterval } from "./excursions";
 import type { HlCandle } from "./hyperliquid/types";
 import {
+  accountValueMaxDrawdown,
   dailyReturns,
-  pnlMaxDrawdown,
   returnOnAvgEquity,
   sharpeSortino,
 } from "./risk";
@@ -78,18 +78,26 @@ describe("sharpeSortino", () => {
   });
 });
 
-describe("pnlMaxDrawdown", () => {
-  it("finds the largest peak-to-trough PnL drop with % vs equity at peak", () => {
-    const pnl = series([0, 100, 60, 120, 40, 90]);
-    const av = series([1000, 1100, 1060, 1120, 1040, 1090]);
-    const dd = pnlMaxDrawdown(av, pnl);
-    expect(dd?.usd).toBeCloseTo(80); // 120 → 40
-    expect(dd?.pct).toBeCloseTo(80 / 1120);
+describe("accountValueMaxDrawdown", () => {
+  it("finds the largest peak-to-trough drop as a fraction of the running peak", () => {
+    // Peak 1200 → trough 900 is the deepest relative drop (25%).
+    const dd = accountValueMaxDrawdown(series([1000, 1200, 900, 1100, 1000]));
+    expect(dd?.pct).toBeCloseTo(300 / 1200);
+    expect(dd?.usd).toBeCloseTo(300);
   });
 
-  it("is zero for a monotonic PnL curve", () => {
-    const dd = pnlMaxDrawdown(series([100, 200]), series([0, 50]));
-    expect(dd?.usd).toBe(0);
+  it("is zero for a monotonic curve", () => {
+    expect(accountValueMaxDrawdown(series([100, 200]))?.pct).toBe(0);
+  });
+
+  it("skips spurious $0 samples instead of reading them as a 100% wipeout", () => {
+    // The interior 0 is a portfolio-series gap, not a real drop to zero.
+    const dd = accountValueMaxDrawdown(series([1000, 0, 1100, 990]));
+    expect(dd?.pct).toBeCloseTo(110 / 1100);
+  });
+
+  it("returns null when there is no positive equity", () => {
+    expect(accountValueMaxDrawdown(series([0, 0]))).toBeNull();
   });
 });
 

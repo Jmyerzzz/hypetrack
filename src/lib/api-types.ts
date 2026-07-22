@@ -25,6 +25,11 @@ export type PortfolioSeries = {
    * read as the account "going to zero".
    */
   combinedValue: PortfolioPoint[];
+  /**
+   * Cumulative combined PnL (perp + spot + vaults) — matches the portfolio
+   * page's PnL, and is what the summary cards and the PnL chart report.
+   */
+  combinedPnl: PortfolioPoint[];
 };
 
 export type PeriodKey = "day" | "week" | "month" | "allTime";
@@ -105,8 +110,8 @@ export type SpotBalanceView = {
 
 /**
  * Total equity mirrors Hyperliquid's portfolio page (perp + spot + outcome
- * value); trades, PnL series, and volume stay scoped to the perp trading
- * account.
+ * value). PnL figures follow the same combined basis; trades and traded volume
+ * stay scoped to the perp trading account.
  */
 export type OverviewPayload = {
   address: string;
@@ -121,6 +126,7 @@ export type OverviewPayload = {
   /** Mark-to-market value of all open outcome positions. */
   outcomeValue: number;
   outcomeMarkets: OutcomeMarketMap;
+  /** Account-level withdrawable: free perp collateral + unencumbered spot USDC. */
   withdrawable: number;
   marginUsed: number;
   totalNtlPos: number;
@@ -128,7 +134,7 @@ export type OverviewPayload = {
   totalUnrealizedPnl: number;
   positions: PositionView[];
   openOrders: OrderView[];
-  /** Perp-account portfolio series, keyed by day/week/month/allTime. */
+  /** Portfolio series (perp + combined), keyed by day/week/month/allTime. */
   portfolio: Record<string, PortfolioSeries>;
   pnlSummary: PnlSummaryEntry[];
   /** Lifetime perp traded volume as reported by Hyperliquid. */

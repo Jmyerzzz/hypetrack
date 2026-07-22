@@ -73,7 +73,9 @@ export function EquityChart({
         : series.accountValue;
       return raw.map((p) => ({ t: p.t, v: p.v, usd: p.v }));
     }
-    const raw = series.pnl;
+    // Combined PnL (perp + spot + vaults) to match the portfolio page and the
+    // combined Total Equity; fall back to perp-only if combined is unavailable.
+    const raw = series.combinedPnl.length ? series.combinedPnl : series.pnl;
     if (raw.length === 0) return [];
     const base = raw[0].v;
     return raw.map((p) => {
@@ -161,7 +163,7 @@ export function EquityChart({
         )}
         <span className="text-xs text-ink3">
           {RANGE_LABELS.find((r) => r.value === range)?.label} ·{" "}
-          {isPnl ? "perp PnL" : "total equity"}
+          {isPnl ? "total PnL" : "total equity"}
         </span>
       </div>
 

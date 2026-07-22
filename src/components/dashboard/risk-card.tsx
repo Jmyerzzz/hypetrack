@@ -50,8 +50,8 @@ export function RiskCard({ risk }: { risk: RiskMetrics }) {
           {ratio(risk.sortino)}
         </Row>
         <Row
-          label="Max drawdown"
-          hint="Largest peak-to-trough drop of the all-time cumulative perp PnL curve; % is relative to account equity at the peak."
+          label="Max drawdown (30D)"
+          hint="Largest peak-to-trough drop of the combined account value over the last 30 days, as a fraction of the peak — the same figure Hyperliquid reports."
         >
           {risk.maxDrawdownUsd == null ? (
             <span className="text-ink3">—</span>
