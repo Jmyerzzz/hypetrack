@@ -6,13 +6,18 @@ import { fmtCompact, fmtUsd } from "@/lib/format";
 
 function Row({
   label,
+  hint,
   children,
 }: {
   label: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5">
+    <div
+      className="flex items-center justify-between gap-3 py-1.5"
+      title={hint}
+    >
       <span className="text-[13px] text-ink2">{label}</span>
       <span className="num text-[13px] text-ink">{children}</span>
     </div>
@@ -26,9 +31,9 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
   // equity that actually backs it. Spot USDC lives in a separate wallet and
   // can't margin a perp position until it's transferred in, so it stays out of
   // both the ratio and the free-collateral figure — folding it in read as spare
-  // buying power the perp book doesn't have. This tracks `withdrawable`: once
-  // the perp account is fully committed the ratio is 100% and free collateral
-  // is $0, even while spot USDC sits in the balances below.
+  // buying power the perp book doesn't have. So once the perp account is fully
+  // committed the ratio is 100% and free collateral is $0, even while spot USDC
+  // sits withdrawable in the balances below.
   const marginRatio =
     overview.perpEquity > 0 ? overview.marginUsed / overview.perpEquity : 0;
   const freeCollateral = Math.max(0, overview.perpEquity - overview.marginUsed);
@@ -55,7 +60,12 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
         <Row label="Unrealized PnL">
           <Pnl value={overview.totalUnrealizedPnl} className="text-[13px]" />
         </Row>
-        <Row label="Withdrawable">{fmtUsd(overview.withdrawable)}</Row>
+        <Row
+          label="Withdrawable"
+          hint="Funds you can withdraw now: the perp wallet's free collateral plus unencumbered spot USDC. Excludes USDC posted as position margin."
+        >
+          {fmtUsd(overview.withdrawable)}
+        </Row>
         <Row label="Open notional">{fmtUsd(overview.totalNtlPos)}</Row>
         <Row label="Account leverage">
           {leverage != null && leverage > 0.001

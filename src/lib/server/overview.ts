@@ -92,6 +92,8 @@ function toSeries(portfolio: HlPortfolio): Record<string, PortfolioSeries> {
       volume: num(data.vlm),
       combinedValue:
         combined?.accountValueHistory.map(([t, v]) => ({ t, v: num(v) })) ?? [],
+      combinedPnl:
+        combined?.pnlHistory.map(([t, v]) => ({ t, v: num(v) })) ?? [],
     };
   }
   return out;
@@ -103,11 +105,15 @@ function summarizePnl(
   const periods: PeriodKey[] = ["day", "week", "month", "allTime"];
   return periods.map((period) => {
     const s = series[period];
-    if (!s || s.pnl.length === 0) return { period, pnl: 0, pct: null };
-    const pnl = s.pnl[s.pnl.length - 1].v - s.pnl[0].v;
+    // Combined (perp + spot + vaults) PnL, to match Hyperliquid's portfolio
+    // page and the combined Total Equity shown alongside these figures. Falls
+    // back to perp-only if the combined series is unavailable.
+    const cum = s?.combinedPnl.length ? s.combinedPnl : s?.pnl;
+    if (!s || !cum || cum.length === 0) return { period, pnl: 0, pct: null };
+    const pnl = cum[cum.length - 1].v - cum[0].v;
     // % = PnL over the window's time-averaged total equity — see risk.ts
     // for why this beats compounded TWR on sampled series.
-    const pct = returnOnAvgEquity(s.combinedValue, s.pnl);
+    const pct = returnOnAvgEquity(s.combinedValue, cum);
     return { period, pnl, pct };
   });
 }
@@ -277,35 +283,56 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
   );
   const perpEquity = mainPerpEquity + builderPerpEquity;
 
-  // On current Hyperliquid accounts the spot USDC balance already contains
-  // the USDC committed to *main-DEX* perps (marked to perp equity), so summing
-  // perp + spot double-counts. Calibrate against Hyperliquid's own combined
-  // account-value series: if (perp + spot) overshoots it by ≈ perpEquity, the
-  // spot value is perp-inclusive and IS the total equity.
-  const combinedHist = new Map(portfolio).get("day")?.accountValueHistory ?? [];
-  const hlCombined = combinedHist.length
-    ? num(combinedHist[combinedHist.length - 1][1])
-    : 0;
-  // Builder-DEX collateral is held in its own clearinghouse — never mirrored in
-  // spot USDC — so the double-count only ever concerns the main DEX. Strip
-  // builder equity from both sides of the test, resolve the main/spot overlap,
-  // then add builder equity back on top.
-  const hlMainCombined = hlCombined - builderPerpEquity;
+  // On current Hyperliquid accounts the spot USDC balance already contains the
+  // USDC committed to *main-DEX* perps: it is reported as `hold` on the spot
+  // USDC balance and, marked to market, equals the perp account value. Summing
+  // perp equity + full spot USDC would therefore double-count it. Detect that
+  // directly from the invariant (both figures come live from the same query
+  // instant, so this is exact), rather than inferring it from a coarse, lagging
+  // series that can misfire when it is empty or stale mid-drawdown.
+  const usdcBalance = spotState.balances.find(
+    (b) => b.token === USDC_TOKEN_INDEX,
+  );
+  const usdcHold = num(usdcBalance?.hold);
   // Outcome holdings count toward the value Hyperliquid charts, so they belong
-  // in the sum being calibrated — omitting them would read as an overlap and
-  // understate total equity by the whole outcome book.
+  // in the total — omitting them would understate it by the whole outcome book.
   const nonPerpValue = rawSpotValue + outcomeValue;
   const naiveSum = mainPerpEquity + nonPerpValue;
-  let baseTotal = naiveSum;
-  let spotIncludesPerpCollateral = false;
-  if (hlMainCombined > 0) {
-    const overlap = naiveSum - hlMainCombined;
-    if (Math.abs(overlap - mainPerpEquity) < Math.abs(overlap)) {
-      baseTotal = nonPerpValue;
-      spotIncludesPerpCollateral = true;
+
+  let spotIncludesPerpCollateral =
+    mainPerpEquity > 0 &&
+    Math.abs(usdcHold - mainPerpEquity) <= Math.max(1, mainPerpEquity * 0.01);
+
+  // Fallback for accounts where the invariant doesn't hold cleanly (legacy
+  // split wallets, or resting spot orders inflating `hold`): calibrate against
+  // Hyperliquid's own combined account-value series — if (perp + spot) overshoots
+  // it by ≈ perpEquity, the spot USDC is perp-inclusive after all. Builder-DEX
+  // collateral lives in its own clearinghouse (never mirrored in spot USDC), so
+  // strip it from both sides of the test.
+  if (!spotIncludesPerpCollateral) {
+    const combinedHist =
+      new Map(portfolio).get("day")?.accountValueHistory ?? [];
+    const hlCombined = combinedHist.length
+      ? num(combinedHist[combinedHist.length - 1][1])
+      : 0;
+    const hlMainCombined = hlCombined - builderPerpEquity;
+    if (hlMainCombined > 0) {
+      const overlap = naiveSum - hlMainCombined;
+      if (Math.abs(overlap - mainPerpEquity) < Math.abs(overlap)) {
+        spotIncludesPerpCollateral = true;
+      }
     }
   }
+
+  const baseTotal = spotIncludesPerpCollateral ? nonPerpValue : naiveSum;
   const totalEquity = baseTotal + builderPerpEquity;
+
+  // Unencumbered spot USDC (net of any perp collateral riding inside it) is the
+  // part of spot that can be withdrawn directly to the user's wallet.
+  const usdcTotal = num(usdcBalance?.total);
+  const freeSpotUsdc = spotIncludesPerpCollateral
+    ? Math.max(0, usdcTotal - mainPerpEquity)
+    : usdcTotal;
 
   // When the spot USDC balance carries the collateral posted to perps, net it
   // out of the displayed USDC row too — otherwise the listed balances can't
@@ -345,9 +372,11 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
       ],
       outcomeIndex,
     ),
-    // Withdrawable is a main-DEX figure — builder collateral must be moved back
-    // there before it can leave — so it stays main-only.
-    withdrawable: num(clearinghouse.withdrawable),
+    // Account-level: the perp wallet's own withdrawable (a main-DEX figure —
+    // builder collateral must be moved back there first) plus the free spot
+    // USDC, which can be withdrawn directly. The raw perp field alone reads $0
+    // for a fully-committed perp account even while spot USDC sits withdrawable.
+    withdrawable: num(clearinghouse.withdrawable) + freeSpotUsdc,
     // Margin and notional span every book, to stay consistent with the merged
     // positions list and its unrealized PnL.
     marginUsed: perpBooks.reduce(
@@ -368,6 +397,6 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     portfolio: series,
     pnlSummary: summarizePnl(series),
     allTimeVolume: series.allTime?.volume ?? 0,
-    risk: computeRiskMetrics(series.month, series.allTime),
+    risk: computeRiskMetrics(series.month),
   };
 }

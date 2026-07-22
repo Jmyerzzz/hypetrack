@@ -5,9 +5,9 @@ export type RiskMetrics = {
   sharpe: number | null;
   /** Same basis, downside deviation only; "inf" when there were no down days. */
   sortino: number | "inf" | null;
-  /** Largest peak-to-trough drop of the cumulative perp PnL curve, all-time. */
+  /** Largest peak-to-trough drop of the combined account-value curve (30D). */
   maxDrawdownUsd: number | null;
-  /** That drop relative to account equity at the peak. */
+  /** That drop as a fraction of the running peak — matches Hyperliquid's figure. */
   maxDrawdownPct: number | null;
   dailySamples: number;
 };
@@ -121,40 +121,42 @@ export function sharpeSortino(returns: number[]): {
 }
 
 /**
- * Max drawdown measured on the cumulative PnL curve (transfer-immune),
- * with the % expressed against account equity at the time of the peak.
+ * Conventional max drawdown of an account-value curve: the largest peak-to-trough
+ * decline as a fraction of the running peak — the same measure Hyperliquid's
+ * portfolio page reports. Non-positive samples (portfolio-series gaps, where the
+ * account momentarily reads $0) are skipped so a spurious zero can't register as
+ * a 100% wipeout. Returns the % alongside the dollar drop at that trough.
  */
-export function pnlMaxDrawdown(
-  accountValue: PortfolioPoint[],
-  pnl: PortfolioPoint[],
-): { usd: number; pct: number | null } | null {
-  const n = Math.min(accountValue.length, pnl.length);
-  if (n === 0) return null;
-  let peakPnl = Number.NEGATIVE_INFINITY;
-  let avAtPeak = 0;
-  let maxDd = 0;
-  let pctAtMax: number | null = null;
-  for (let i = 0; i < n; i++) {
-    if (pnl[i].v > peakPnl) {
-      peakPnl = pnl[i].v;
-      avAtPeak = accountValue[i].v;
-    }
-    const dd = peakPnl - pnl[i].v;
-    if (dd > maxDd) {
-      maxDd = dd;
-      pctAtMax = avAtPeak > 1 ? dd / avAtPeak : null;
+export function accountValueMaxDrawdown(
+  equity: PortfolioPoint[],
+): { usd: number; pct: number } | null {
+  let peak = 0;
+  let maxPct = 0;
+  let usdAtMaxPct = 0;
+  let seen = false;
+  for (const point of equity) {
+    const v = point.v;
+    if (v <= 0) continue;
+    seen = true;
+    if (v > peak) peak = v;
+    const dd = peak - v;
+    const pct = peak > 0 ? dd / peak : 0;
+    if (pct > maxPct) {
+      maxPct = pct;
+      usdAtMaxPct = dd;
     }
   }
-  return { usd: maxDd, pct: pctAtMax };
+  return seen ? { usd: usdAtMaxPct, pct: maxPct } : null;
 }
 
 export function computeRiskMetrics(
   month: PortfolioSeries | undefined,
-  allTime: PortfolioSeries | undefined,
 ): RiskMetrics {
   const returns = month ? dailyReturns(month.accountValue, month.pnl) : [];
   const { sharpe, sortino } = sharpeSortino(returns);
-  const dd = allTime ? pnlMaxDrawdown(allTime.accountValue, allTime.pnl) : null;
+  // Drawdown tracks the combined (perp + spot) account value over the 30-day
+  // window, matching Hyperliquid's portfolio "Max Drawdown".
+  const dd = month ? accountValueMaxDrawdown(month.combinedValue) : null;
   return {
     sharpe,
     sortino,
