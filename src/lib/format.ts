@@ -112,6 +112,22 @@ export function fmtDay(ts: number): string {
   return dateDay.format(ts);
 }
 
+/**
+ * Epoch ms of local midnight for a native date input's "YYYY-MM-DD" value,
+ * `dayOffset` days later; null for an empty or malformed value. Parsed by
+ * parts because `new Date("YYYY-MM-DD")` reads as UTC midnight — up to a
+ * timezone away from the user's calendar day. `dayOffset: 1` turns a range's
+ * inclusive end date into its exclusive upper bound.
+ */
+export function dateInputMs(
+  value: string,
+  { dayOffset = 0 }: { dayOffset?: number } = {},
+): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return null;
+  return new Date(+m[1], +m[2] - 1, +m[3] + dayOffset).getTime();
+}
+
 export function fmtDuration(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms) || ms < 0) return "—";
   const s = Math.round(ms / 1000);
