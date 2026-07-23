@@ -375,6 +375,89 @@ export function FilterSelect({
   );
 }
 
+/**
+ * Date-range control for a list's filter row, wearing {@link FilterSelect}'s
+ * skin. Values are the native inputs' "YYYY-MM-DD" strings ("" = unbounded)
+ * and interpreting them is the caller's job, so either bound works alone —
+ * only "from" reads as "that day to present". Native pickers keep it usable
+ * on phones, and the root color-scheme keeps them legible in both themes.
+ * Below `sm` it spans the filter grid's full row and stacks each label over
+ * its input: two inline-labelled dates don't fit a phone width — desktop
+ * engines clip the segmented editor rather than shrink it.
+ */
+export function FilterDateRange({
+  from,
+  to,
+  onFromChange,
+  onToChange,
+  label,
+}: {
+  from: string;
+  to: string;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+  /** Accessible-name prefix for the inputs, e.g. "Trades opened". */
+  label: string;
+}) {
+  const labelClass =
+    "flex min-w-0 flex-1 flex-col sm:flex-none sm:flex-row sm:items-center sm:gap-1.5";
+  const tagClass = "text-[10px] font-medium tracking-wide text-ink3 uppercase";
+  const inputClass =
+    "num w-full min-w-0 bg-transparent text-inherit focus:outline-none sm:w-auto";
+  return (
+    <div className="col-span-2 flex items-center gap-3 rounded-lg border border-edge bg-inset px-3 py-2 text-base text-ink2 focus-within:border-accent/60 sm:gap-0 sm:px-2.5 sm:py-1.5 sm:text-xs">
+      <label className={labelClass}>
+        <span className={tagClass}>From</span>
+        <input
+          type="date"
+          value={from}
+          max={to || undefined}
+          onChange={(e) => onFromChange(e.target.value)}
+          aria-label={`${label} on or after`}
+          className={inputClass}
+        />
+      </label>
+      <span aria-hidden="true" className="hidden px-1.5 text-ink3 sm:block">
+        –
+      </span>
+      <label className={labelClass}>
+        <span className={tagClass}>To</span>
+        <input
+          type="date"
+          value={to}
+          min={from || undefined}
+          onChange={(e) => onToChange(e.target.value)}
+          aria-label={`${label} on or before`}
+          className={inputClass}
+        />
+      </label>
+      {(from !== "" || to !== "") && (
+        <button
+          type="button"
+          onClick={() => {
+            onFromChange("");
+            onToChange("");
+          }}
+          aria-label="Clear date range"
+          title="Clear date range"
+          className="rounded-md p-1 text-ink3 transition-colors hover:bg-panel2 hover:text-ink sm:-my-1 sm:ml-1.5"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className="size-3.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Switches a data list between the dense table and stacked cards. */
 export function ViewToggle({
   value,

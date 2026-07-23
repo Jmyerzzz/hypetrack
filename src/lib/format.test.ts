@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fmtNetPnlBreakdown } from "./format";
+import { dateInputMs, fmtNetPnlBreakdown } from "./format";
 
 describe("fmtNetPnlBreakdown", () => {
   it("subtracts positive fees and adds received funding", () => {
@@ -21,5 +21,23 @@ describe("fmtNetPnlBreakdown", () => {
 
   it("handles a rebate and paid funding together", () => {
     expect(fmtNetPnlBreakdown(0, -0.5, -0.25)).toBe("$0.00 + $0.50 − $0.25");
+  });
+});
+
+describe("dateInputMs", () => {
+  it("maps a date-input value to local midnight, not UTC", () => {
+    expect(dateInputMs("2026-07-04")).toBe(new Date(2026, 6, 4).getTime());
+  });
+
+  it("rolls dayOffset across month and year boundaries", () => {
+    expect(dateInputMs("2025-12-31", { dayOffset: 1 })).toBe(
+      new Date(2026, 0, 1).getTime(),
+    );
+  });
+
+  it("returns null for empty and malformed values", () => {
+    expect(dateInputMs("")).toBeNull();
+    expect(dateInputMs("yesterday")).toBeNull();
+    expect(dateInputMs("2026-7-4")).toBeNull();
   });
 });

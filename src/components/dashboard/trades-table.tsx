@@ -8,6 +8,7 @@ import {
   DirectionBadge,
   EmptyState,
   ExplorerLink,
+  FilterDateRange,
   FilterRow,
   FilterSelect,
   MarketTag,
@@ -19,6 +20,7 @@ import {
 } from "@/components/ui";
 import type { OutcomeMarketMap, OutcomeMarketView } from "@/lib/api-types";
 import {
+  dateInputMs,
   fmtDuration,
   fmtNetPnlBreakdown,
   fmtPct,
@@ -387,6 +389,9 @@ export function TradesTable({
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
   const [dirFilter, setDirFilter] = useState<DirFilter>("all");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  // Native date-input values ("YYYY-MM-DD", "" = unbounded).
+  const [openedFrom, setOpenedFrom] = useState("");
+  const [openedTo, setOpenedTo] = useState("");
   const [visible, setVisible] = useState(PAGE);
 
   // Outcome markets get their real name in the picker; a bare "#8560" is
@@ -409,27 +414,39 @@ export function TradesTable({
     [trades],
   );
 
-  const filtered = useMemo(
-    () =>
-      trades.filter((t) => {
-        if (coinFilter !== "all" && t.coin !== coinFilter) return false;
-        if (kindFilter !== "all" && t.kind !== kindFilter) return false;
-        if (dirFilter !== "all" && t.direction !== dirFilter) return false;
-        switch (resultFilter) {
-          case "wins":
-            return t.isWin === true;
-          case "losses":
-            return t.isWin === false;
-          case "open":
-            return t.status === "open";
-          case "liquidated":
-            return t.liquidated;
-          default:
-            return true;
-        }
-      }),
-    [trades, coinFilter, resultFilter, dirFilter, kindFilter],
-  );
+  const filtered = useMemo(() => {
+    const fromMs = dateInputMs(openedFrom);
+    // Exclusive upper bound at the next day's midnight keeps the whole
+    // "to" day in range.
+    const toMs = dateInputMs(openedTo, { dayOffset: 1 });
+    return trades.filter((t) => {
+      if (coinFilter !== "all" && t.coin !== coinFilter) return false;
+      if (kindFilter !== "all" && t.kind !== kindFilter) return false;
+      if (dirFilter !== "all" && t.direction !== dirFilter) return false;
+      if (fromMs != null && t.openedAt < fromMs) return false;
+      if (toMs != null && t.openedAt >= toMs) return false;
+      switch (resultFilter) {
+        case "wins":
+          return t.isWin === true;
+        case "losses":
+          return t.isWin === false;
+        case "open":
+          return t.status === "open";
+        case "liquidated":
+          return t.liquidated;
+        default:
+          return true;
+      }
+    });
+  }, [
+    trades,
+    coinFilter,
+    resultFilter,
+    dirFilter,
+    kindFilter,
+    openedFrom,
+    openedTo,
+  ]);
 
   const shown = filtered.slice(0, visible);
   const toggle = (id: string) =>
@@ -507,6 +524,20 @@ export function TradesTable({
           <option value="long">Long</option>
           <option value="short">Short</option>
         </FilterSelect>
+        {/* Bounds the open date — the date every row shows. */}
+        <FilterDateRange
+          from={openedFrom}
+          to={openedTo}
+          onFromChange={(v) => {
+            setOpenedFrom(v);
+            setVisible(PAGE);
+          }}
+          onToChange={(v) => {
+            setOpenedTo(v);
+            setVisible(PAGE);
+          }}
+          label="Trades opened"
+        />
       </FilterRow>
 
       {view === "cards" ? (
