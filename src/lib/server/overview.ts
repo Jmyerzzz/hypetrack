@@ -15,6 +15,7 @@ import {
   fetchSpotClearinghouseState,
   fetchSpotMetaAndAssetCtxs,
 } from "../hyperliquid/client";
+import { reconcileEquity } from "../hyperliquid/equity";
 import {
   describeOutcomeCoins,
   isOutcomeCoin,
@@ -283,68 +284,40 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
   );
   const perpEquity = mainPerpEquity + builderPerpEquity;
 
-  // On current Hyperliquid accounts the spot USDC balance already contains the
-  // USDC committed to *main-DEX* perps: it is reported as `hold` on the spot
-  // USDC balance and, marked to market, equals the perp account value. Summing
-  // perp equity + full spot USDC would therefore double-count it. Detect that
-  // directly from the invariant (both figures come live from the same query
-  // instant, so this is exact), rather than inferring it from a coarse, lagging
-  // series that can misfire when it is empty or stale mid-drawdown.
+  // Hyperliquid's unified-collateral model draws perp margin straight from the
+  // spot USDC balance: the collateral is reported as `hold` on the spot USDC
+  // row *and* marked to market as the perp `accountValue`. Counting both
+  // double-counts it, so `reconcileEquity` nets the held USDC out of the spot
+  // side — subtracting the held amount (what actually sits in spot), not the
+  // perp equity (which is that collateral plus unrealized PnL that lives only
+  // in the perp account). See equity.ts for the full derivation.
   const usdcBalance = spotState.balances.find(
     (b) => b.token === USDC_TOKEN_INDEX,
   );
-  const usdcHold = num(usdcBalance?.hold);
-  // Outcome holdings count toward the value Hyperliquid charts, so they belong
-  // in the total — omitting them would understate it by the whole outcome book.
-  const nonPerpValue = rawSpotValue + outcomeValue;
-  const naiveSum = mainPerpEquity + nonPerpValue;
-
-  let spotIncludesPerpCollateral =
-    mainPerpEquity > 0 &&
-    Math.abs(usdcHold - mainPerpEquity) <= Math.max(1, mainPerpEquity * 0.01);
-
-  // Fallback for accounts where the invariant doesn't hold cleanly (legacy
-  // split wallets, or resting spot orders inflating `hold`): calibrate against
-  // Hyperliquid's own combined account-value series — if (perp + spot) overshoots
-  // it by ≈ perpEquity, the spot USDC is perp-inclusive after all. Builder-DEX
-  // collateral lives in its own clearinghouse (never mirrored in spot USDC), so
-  // strip it from both sides of the test.
-  if (!spotIncludesPerpCollateral) {
-    const combinedHist =
-      new Map(portfolio).get("day")?.accountValueHistory ?? [];
-    const hlCombined = combinedHist.length
-      ? num(combinedHist[combinedHist.length - 1][1])
-      : 0;
-    const hlMainCombined = hlCombined - builderPerpEquity;
-    if (hlMainCombined > 0) {
-      const overlap = naiveSum - hlMainCombined;
-      if (Math.abs(overlap - mainPerpEquity) < Math.abs(overlap)) {
-        spotIncludesPerpCollateral = true;
-      }
-    }
-  }
-
-  const baseTotal = spotIncludesPerpCollateral ? nonPerpValue : naiveSum;
-  const totalEquity = baseTotal + builderPerpEquity;
-
-  // Unencumbered spot USDC (net of any perp collateral riding inside it) is the
-  // part of spot that can be withdrawn directly to the user's wallet.
   const usdcTotal = num(usdcBalance?.total);
-  const freeSpotUsdc = spotIncludesPerpCollateral
-    ? Math.max(0, usdcTotal - mainPerpEquity)
-    : usdcTotal;
+  const usdcHold = num(usdcBalance?.hold);
 
-  // When the spot USDC balance carries the collateral posted to perps, net it
-  // out of the displayed USDC row too — otherwise the listed balances can't
-  // reconcile with the reported spot value. Only main-DEX collateral rides in
-  // spot USDC, so only that is netted out.
+  const { totalEquity, spotValue, freeSpotUsdc, perpCollateralInSpot } =
+    reconcileEquity({
+      mainPerpEquity,
+      builderPerpEquity,
+      rawSpotValue,
+      // Outcome holdings count toward the value Hyperliquid charts, so they
+      // belong in the total — omitting them understates it by the outcome book.
+      outcomeValue,
+      usdcTotal,
+      usdcHold,
+    });
+
+  // Net the perp collateral out of the displayed USDC row too, so the listed
+  // balances reconcile with the reported spot value.
   const spotBalances = rawSpotBalances
     .map((b) =>
-      spotIncludesPerpCollateral && b.token === USDC_TOKEN_INDEX
+      b.token === USDC_TOKEN_INDEX
         ? {
             ...b,
-            total: Math.max(0, b.total - mainPerpEquity),
-            usdValue: Math.max(0, (b.usdValue ?? 0) - mainPerpEquity),
+            total: Math.max(0, b.total - perpCollateralInSpot),
+            usdValue: Math.max(0, (b.usdValue ?? 0) - perpCollateralInSpot),
           }
         : b,
     )
@@ -360,7 +333,7 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     perpEquity,
     // Spot value excluding USDC committed to perps, so the three parts sum to
     // total: perp + spot + outcome.
-    spotValue: totalEquity - perpEquity - outcomeValue,
+    spotValue,
     totalEquity,
     spotBalances: spotBalances.slice(0, 6),
     outcomePositions,
