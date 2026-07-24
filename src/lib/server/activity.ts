@@ -204,12 +204,19 @@ export async function buildActivity(address: string): Promise<ActivityPayload> {
   const transfers = ledgerResult.records
     .map((u) => toTransferView(u, address))
     .reverse();
-  const totalDeposited = transfers
-    .filter((t) => t.type === "deposit")
-    .reduce((a, t) => a + (t.amountUsd ?? 0), 0);
-  const totalWithdrawn = transfers
-    .filter((t) => t.type === "withdraw")
-    .reduce((a, t) => a + Math.abs(t.amountUsd ?? 0), 0);
+  // Capital in and out, keyed off the sign of the USD effect rather than the
+  // ledger `type`. Accounts are routinely funded by `send`/`spotTransfer` or a
+  // peer `internalTransfer` and never touch the Arbitrum bridge, so matching
+  // only `deposit`/`withdraw` reports $0 in for them. `accountClassTransfer`
+  // is skipped: it shuffles USDC between this account's own spot and perp
+  // wallets, moving nothing in or out.
+  let totalDeposited = 0;
+  let totalWithdrawn = 0;
+  for (const t of transfers) {
+    if (t.type === "accountClassTransfer" || t.amountUsd == null) continue;
+    if (t.amountUsd > 0) totalDeposited += t.amountUsd;
+    else totalWithdrawn -= t.amountUsd;
+  }
 
   const recentFills = fills
     .slice(-FILLS_PAYLOAD_CAP)
