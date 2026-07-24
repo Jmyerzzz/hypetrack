@@ -33,6 +33,9 @@ function Card({
 const PCT_HINT =
   "PnL over this window divided by the account's time-averaged total equity in the window — a Modified-Dietz-style return that stays stable under deposits and withdrawals.";
 
+const FLOW_HINT =
+  "External capital moved in and out of this account — bridge deposits and withdrawals plus peer transfers. Spot↔perp movements are excluded, and transfers of unpriced tokens can't be valued.";
+
 function PctChip({ pct }: { pct: number | null }) {
   if (pct == null) return null;
   const tone =
@@ -62,9 +65,14 @@ export function StatCards({
   const month = overview?.pnlSummary.find((p) => p.period === "month");
   const day = overview?.pnlSummary.find((p) => p.period === "day");
   const stats = activity?.stats;
+  const netDeposits = activity
+    ? activity.totalDeposited - activity.totalWithdrawn
+    : null;
 
+  // Two balanced xl rows (equity + 2, then 4) rather than one row of seven:
+  // at a seventh of the width the cards' money legs wrap mid-number.
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-7">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
       <Card
         label="Total equity"
         className="col-span-2 sm:col-span-3 xl:col-span-2"
@@ -226,6 +234,41 @@ export function StatCards({
                 className="text-[13px] sm:text-sm"
               />
             </span>
+          </span>
+        ) : (
+          <Skeleton className="h-7 w-24" />
+        )}
+      </Card>
+
+      {/* Net leads because it's the figure that reconciles against PnL:
+          total equity − net deposits is what the account actually earned. */}
+      <Card
+        label="Deposits · withdrawals"
+        sub={
+          activity ? (
+            <span className="num flex flex-col gap-0.5">
+              <span className="whitespace-nowrap">
+                In{" "}
+                <span className="text-upt">
+                  {fmtUsdSigned(activity.totalDeposited, { compact: true })}
+                </span>
+              </span>
+              <span className="whitespace-nowrap">
+                Out{" "}
+                <span className="text-downt">
+                  {fmtUsdSigned(-activity.totalWithdrawn, { compact: true })}
+                </span>
+              </span>
+              {!activity.coverage.ledgerComplete && <span>partial ledger</span>}
+            </span>
+          ) : (
+            <Skeleton className="h-8 w-24" />
+          )
+        }
+      >
+        {activity ? (
+          <span className="num whitespace-nowrap" title={FLOW_HINT}>
+            {fmtUsdSigned(netDeposits ?? 0, { compact: true })}
           </span>
         ) : (
           <Skeleton className="h-7 w-24" />
