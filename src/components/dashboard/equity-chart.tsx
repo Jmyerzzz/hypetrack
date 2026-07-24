@@ -14,6 +14,7 @@ import {
 import { EmptyState, Pnl, SegmentedControl } from "@/components/ui";
 import type { PortfolioSeries } from "@/lib/api-types";
 import { fmtCompact, fmtTime, fmtUsd } from "@/lib/format";
+import { returnOnAvgEquity } from "@/lib/risk";
 
 type Range = "day" | "week" | "month" | "allTime";
 type Metric = "equity" | "pnl";
@@ -99,16 +100,24 @@ export function EquityChart({
   const zeroOffset = max <= 0 ? 0 : min >= 0 ? 1 : max / (max - min);
 
   const hasData = data.length > 1;
-  // Equity mode measures the window change from the first meaningfully
-  // funded sample, so a dust-value first tick doesn't yield a nonsense %.
-  const ref = !hasData
-    ? null
-    : isPnl
-      ? data[0]
-      : (data.find((p) => p.usd > 10) ?? data[0]);
-  const delta = hasData && ref ? data[data.length - 1].usd - ref.usd : 0;
-  const growthPct =
-    !isPnl && hasData && ref && ref.usd > 10 ? delta / ref.usd : null;
+
+  // Equity mode summarises the window with trading PnL and its return on the
+  // window's average equity — the same basis as the summary cards. Account
+  // value alone can't answer "how did I do": it books every deposit as growth
+  // and every withdrawal as a loss. Read off `series`, not `data`, so the
+  // figures don't depend on which tab is open.
+  const summary = useMemo(() => {
+    if (!series) return null;
+    const pnl = series.combinedPnl.length ? series.combinedPnl : series.pnl;
+    if (pnl.length < 2) return null;
+    const equity = series.combinedValue.length
+      ? series.combinedValue
+      : series.accountValue;
+    return {
+      pnl: pnl[pnl.length - 1].v - pnl[0].v,
+      pct: returnOnAvgEquity(equity, pnl),
+    };
+  }, [series]);
 
   const tickFormat = (t: number): string => {
     const d = new Date(t);
@@ -156,9 +165,9 @@ export function EquityChart({
             {fmtUsd(last?.usd ?? 0)}
           </span>
         )}
-        {!isPnl && hasData && (
-          <span title="Change in total account value over this window, deposits and withdrawals included.">
-            <Pnl value={delta} pct={growthPct} className="text-sm" />
+        {!isPnl && summary && (
+          <span title="Trading PnL over this window, and its return on the window's average equity. Deposits and withdrawals are excluded.">
+            <Pnl value={summary.pnl} pct={summary.pct} className="text-sm" />
           </span>
         )}
         <span className="text-xs text-ink3">
