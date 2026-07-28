@@ -15,8 +15,8 @@ import {
   Td,
   Th,
 } from "@/components/ui";
-import type { PositionView } from "@/lib/api-types";
-import { fmtPrice, fmtSize, fmtUsd } from "@/lib/format";
+import type { PositionTriggerView, PositionView } from "@/lib/api-types";
+import { fmtPct, fmtPrice, fmtSize, fmtUsd } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
 
 type PnlFilter = "all" | "profit" | "loss";
@@ -73,6 +73,53 @@ const SORT_OPTIONS: {
   },
 ];
 
+/**
+ * A position's TP or SL levels, compressed to the next trigger price would
+ * reach: a partial order carries how much of the position it closes, a ladder
+ * folds into a `+N`, and the title spells out every rung. An em dash keeps
+ * the slot (and its meaning — no exit set) when nothing rests on that side.
+ */
+function TriggerSummary({
+  triggers,
+  kind,
+  szi,
+}: {
+  triggers: PositionTriggerView[];
+  kind: "tp" | "sl";
+  szi: number;
+}) {
+  const own = triggers.filter((t) => t.kind === kind);
+  if (own.length === 0) return <span className="text-ink3">—</span>;
+  const [next, ...rest] = own;
+  const size = Math.abs(szi);
+  const coverage = next.sz > 0 && next.sz < size ? next.sz / size : null;
+  const title = own
+    .map(
+      (t) =>
+        `${kind === "tp" ? "Take profit" : "Stop loss"} ${
+          t.isMarket ? "market" : "limit"
+        } @ ${fmtPrice(t.triggerPx)} · ${
+          t.sz === 0 || t.sz >= size ? "full position" : fmtSize(t.sz)
+        }`,
+    )
+    .join("\n");
+  return (
+    <span
+      className={`num ${kind === "tp" ? "text-upt" : "text-downt"}`}
+      title={title}
+    >
+      {fmtPrice(next.triggerPx)}
+      {(coverage != null || rest.length > 0) && (
+        <span className="ml-1 text-[11px] opacity-75">
+          {coverage != null && fmtPct(coverage, { digits: 0 })}
+          {coverage != null && rest.length > 0 && " "}
+          {rest.length > 0 && `+${rest.length}`}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function PositionCard({ p }: { p: PositionView }) {
   return (
     <DataCard>
@@ -116,6 +163,12 @@ function PositionCard({ p }: { p: PositionView }) {
         </CardField>
         <CardField label="Funding" align="right">
           <Pnl value={p.fundingSinceOpen} className="text-[13px]" />
+        </CardField>
+        <CardField label="Take profit">
+          <TriggerSummary triggers={p.triggers} kind="tp" szi={p.szi} />
+        </CardField>
+        <CardField label="Stop loss" align="right">
+          <TriggerSummary triggers={p.triggers} kind="sl" szi={p.szi} />
         </CardField>
       </div>
     </DataCard>
@@ -277,7 +330,7 @@ export function PositionsTable({
         </CardList>
       ) : (
         <div className="scroll-thin overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse">
+          <table className="w-full min-w-[960px] border-collapse">
             <thead>
               <tr className="border-b border-edge">
                 <Th align="left">Market</Th>
@@ -286,6 +339,7 @@ export function PositionsTable({
                 <Th>Entry</Th>
                 <Th>Mark</Th>
                 <Th>Liq. price</Th>
+                <Th>TP / SL</Th>
                 <Th>Margin</Th>
                 <Th>Funding</Th>
                 <Th>Unrealized PnL</Th>
@@ -317,6 +371,19 @@ export function PositionsTable({
                   <Td className="num">{fmtPrice(p.entryPx)}</Td>
                   <Td className="num">{fmtPrice(p.markPx)}</Td>
                   <Td className="num text-warn">{fmtPrice(p.liquidationPx)}</Td>
+                  <Td>
+                    <TriggerSummary
+                      triggers={p.triggers}
+                      kind="tp"
+                      szi={p.szi}
+                    />
+                    <span className="text-ink3"> / </span>
+                    <TriggerSummary
+                      triggers={p.triggers}
+                      kind="sl"
+                      szi={p.szi}
+                    />
+                  </Td>
                   <Td className="num">{fmtUsd(p.marginUsed)}</Td>
                   <Td>
                     <Pnl value={p.fundingSinceOpen} className="text-[13px]" />
