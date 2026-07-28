@@ -22,6 +22,7 @@ import {
   toMarketCoin,
 } from "../hyperliquid/outcome";
 import { buildSpotTokenInfo, type SpotTokenInfo } from "../hyperliquid/spot";
+import { matchPositionTriggers } from "../hyperliquid/triggers";
 import type {
   HlAllMids,
   HlAssetPosition,
@@ -40,16 +41,21 @@ const num = (s: string | number | null | undefined): number => {
 };
 
 /** One perp position (main or builder DEX) to its view; builder coins arrive
- *  already namespaced (`xyz:SKHX`), which the coin tag renders on its own. */
-function toPositionView(p: HlAssetPosition["position"]): PositionView {
+ *  already namespaced (`xyz:SKHX`), which the coin tag renders on its own.
+ *  `openOrders` is the main-DEX book, so builder positions match no triggers. */
+function toPositionView(
+  p: HlAssetPosition["position"],
+  openOrders: HlOpenOrder[],
+): PositionView {
   const szi = num(p.szi);
   const positionValue = num(p.positionValue);
+  const markPx = Math.abs(szi) > 0 ? positionValue / Math.abs(szi) : null;
   return {
     coin: p.coin,
     szi,
     direction: szi >= 0 ? "long" : "short",
     entryPx: num(p.entryPx),
-    markPx: Math.abs(szi) > 0 ? positionValue / Math.abs(szi) : null,
+    markPx,
     positionValue,
     unrealizedPnl: num(p.unrealizedPnl),
     roe: num(p.returnOnEquity),
@@ -60,6 +66,11 @@ function toPositionView(p: HlAssetPosition["position"]): PositionView {
     maxLeverage: p.maxLeverage,
     // cumFunding is the amount paid by the position; negate → net received.
     fundingSinceOpen: -num(p.cumFunding.sinceOpen),
+    triggers: matchPositionTriggers(openOrders, {
+      coin: p.coin,
+      szi,
+      refPx: markPx ?? num(p.entryPx),
+    }),
   };
 }
 
@@ -269,7 +280,7 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
 
   const positions: PositionView[] = perpBooks
     .flatMap((book) => book.assetPositions)
-    .map(({ position }) => toPositionView(position))
+    .map(({ position }) => toPositionView(position, openOrders))
     .sort((a, b) => b.positionValue - a.positionValue);
 
   const series = toSeries(portfolio);

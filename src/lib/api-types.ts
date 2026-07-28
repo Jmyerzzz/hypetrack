@@ -41,6 +41,17 @@ export type PnlSummaryEntry = {
   pct: number | null;
 };
 
+/** A TP/SL trigger order resting against an open position. */
+export type PositionTriggerView = {
+  oid: number;
+  kind: "tp" | "sl";
+  triggerPx: number;
+  /** Order size in contracts; 0 = closes the whole position (position TP/SL). */
+  sz: number;
+  /** Executes as a market order once triggered; false places a limit instead. */
+  isMarket: boolean;
+};
+
 export type PositionView = {
   coin: string;
   szi: number;
@@ -58,6 +69,11 @@ export type PositionView = {
   maxLeverage: number;
   /** Net funding received since open (positive = received). */
   fundingSinceOpen: number;
+  /**
+   * TP/SL trigger orders that would close this position, nearest trigger
+   * first. Main-DEX only — builder-DEX order books aren't fetched.
+   */
+  triggers: PositionTriggerView[];
 };
 
 /**
