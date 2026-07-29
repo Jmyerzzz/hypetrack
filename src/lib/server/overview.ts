@@ -286,8 +286,10 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
   const series = toSeries(portfolio);
 
   // Perp equity spans every book: the main DEX plus each HIP-3 builder DEX,
-  // which hold their collateral separately. Their sum matches Hyperliquid's own
-  // aggregated `perpDay` account value.
+  // each of which reports its own clearinghouse. Their sum matches
+  // Hyperliquid's own aggregated `perpDay` account value. The collateral
+  // itself is not separate — every book's margin rides in the one spot USDC
+  // hold, which is why `reconcileEquity` nets against the combined equity.
   const mainPerpEquity = num(clearinghouse.marginSummary.accountValue);
   const builderPerpEquity = builderBooks.reduce(
     (a, b) => a + num(b.marginSummary.accountValue),

@@ -95,17 +95,39 @@ describe("reconcileEquity", () => {
       rawSpotValue: 3000,
     });
     expect(r.perpEquity).toBe(2300);
-    // Only main-DEX collateral rides in spot USDC, so netting is unchanged.
+    // The hold spans both books' margin, so netting takes the whole $2500.
     expect(r.perpCollateralInSpot).toBe(2500);
     expect(r.spotValue).toBe(500);
     expect(r.totalEquity).toBe(2800); // 2300 perp + 500 free spot
   });
 
-  it("does not net a spot-order hold when there are no perps", () => {
+  it("nets builder-DEX collateral when the main perp book is empty", () => {
+    // Live account: only an isolated `xyz:SKHX` position, no main-DEX perps.
+    // Its collateral still sits in the spot USDC hold, so it must be netted —
+    // the old `mainPerpEquity > 0` guard skipped it and double-counted.
+    const r = reconcileEquity({
+      ...base,
+      mainPerpEquity: 0,
+      builderPerpEquity: 870.371758,
+      usdcTotal: 3239.671649,
+      usdcHold: 870.371758,
+      rawSpotValue: 3239.671649, // USDC only; MAX priced at $0
+    });
+    expect(r.perpCollateralInSpot).toBeCloseTo(870.3718, 2);
+    expect(r.spotValue).toBeCloseTo(2369.2999, 2); // = tokenToAvailableAfterMaintenance
+    // Matches Hyperliquid's own combined account value ($3,239.67), which
+    // counts the builder collateral once, in the spot USDC total.
+    expect(r.totalEquity).toBeCloseTo(3239.6716, 2);
+    // Regression guard: the old formula reported ~$4,110 here.
+    expect(r.totalEquity).toBeLessThan(3300);
+  });
+
+  it("does not net a spot-order hold when there are no perps on any book", () => {
     // $400 of USDC locked by a resting spot buy order, no perp positions.
     const r = reconcileEquity({
       ...base,
       mainPerpEquity: 0,
+      builderPerpEquity: 0,
       usdcTotal: 1000,
       usdcHold: 400,
       rawSpotValue: 1000,

@@ -41,10 +41,16 @@ export interface EquityBreakdown {
  * by exactly the unrealized PnL. `usdcTotal - usdcHold` equals Hyperliquid's
  * reported `tokenToAvailableAfterMaintenance` for USDC.
  *
- * Only main-DEX margin rides in spot USDC (builder-DEX collateral sits in its
- * own clearinghouse), and legacy/separate wallets carry no such hold, so the
- * `mainPerpEquity > 0` guard makes this a no-op for them — and stops a pure
- * spot-order hold (no perps) from being mistaken for posted collateral.
+ * HIP-3 builder-DEX margin rides in the *same* spot USDC hold as main-DEX
+ * margin, despite living in its own clearinghouse: an account with an empty
+ * main book and one isolated `xyz:` position reports a USDC `hold` equal, to
+ * the cent, to that builder book's `accountValue`. So the guard keys off perp
+ * equity across every book — gating on `mainPerpEquity` alone skipped the
+ * netting for accounts that trade only builder DEXs, double-counting their
+ * collateral (once in the builder `accountValue`, once in spot USDC) and
+ * overstating total equity by exactly the builder equity. Legacy/separate
+ * wallets carry no such hold, so this stays a no-op for them — and a pure
+ * spot-order hold (no perps at all) is still never mistaken for collateral.
  *
  * `freeSpotUsdc` (withdrawable) nets the *whole* USDC hold, not just the perp
  * collateral: spot-order locks aren't withdrawable either. They differ only
@@ -54,7 +60,7 @@ export interface EquityBreakdown {
 export function reconcileEquity(input: EquityInputs): EquityBreakdown {
   const perpEquity = input.mainPerpEquity + input.builderPerpEquity;
   const perpCollateralInSpot =
-    input.mainPerpEquity > 0 ? Math.min(input.usdcHold, input.usdcTotal) : 0;
+    perpEquity > 0 ? Math.min(input.usdcHold, input.usdcTotal) : 0;
   const spotValue = input.rawSpotValue - perpCollateralInSpot;
   const totalEquity = perpEquity + spotValue + input.outcomeValue;
   const freeSpotUsdc = Math.max(0, input.usdcTotal - input.usdcHold);
