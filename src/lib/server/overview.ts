@@ -1,5 +1,4 @@
 import type {
-  OrderView,
   OutcomePositionView,
   OverviewPayload,
   PeriodKey,
@@ -16,6 +15,7 @@ import {
   fetchSpotMetaAndAssetCtxs,
 } from "../hyperliquid/client";
 import { reconcileEquity } from "../hyperliquid/equity";
+import { flattenOrders } from "../hyperliquid/orders";
 import {
   describeOutcomeCoins,
   isOutcomeCoin,
@@ -32,7 +32,6 @@ import type {
   HlSpotBalance,
 } from "../hyperliquid/types";
 import { computeRiskMetrics, returnOnAvgEquity } from "../risk";
-import { isSpotCoin } from "../trades";
 import { getAllMids, getBuilderDexNames, getOutcomeIndex } from "./markets";
 
 const num = (s: string | number | null | undefined): number => {
@@ -128,34 +127,6 @@ function summarizePnl(
     const pct = returnOnAvgEquity(s.combinedValue, cum);
     return { period, pnl, pct };
   });
-}
-
-function flattenOrders(orders: HlOpenOrder[]): OrderView[] {
-  const out: OrderView[] = [];
-  const push = (o: HlOpenOrder): void => {
-    if (!isSpotCoin(o.coin)) {
-      out.push({
-        oid: o.oid,
-        coin: o.coin,
-        isBuy: o.side === "B",
-        limitPx: num(o.limitPx),
-        sz: num(o.sz),
-        origSz: num(o.origSz),
-        orderType: o.orderType,
-        tif: o.tif,
-        reduceOnly: o.reduceOnly,
-        isTrigger: o.isTrigger,
-        triggerPx: num(o.triggerPx),
-        triggerCondition: o.triggerCondition,
-        isPositionTpsl: o.isPositionTpsl,
-        timestamp: o.timestamp,
-      });
-    }
-    for (const child of o.children ?? []) push(child);
-  };
-  for (const o of orders) push(o);
-  out.sort((a, b) => b.timestamp - a.timestamp);
-  return out;
 }
 
 async function getSpotTokenInfo(): Promise<SpotTokenInfo> {
