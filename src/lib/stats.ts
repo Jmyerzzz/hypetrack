@@ -20,7 +20,12 @@ export type DirectionStats = {
   netPnl: number;
 };
 
-export type TradeStats = {
+/**
+ * The half of {@link TradeStats} derived from reconstructed trades alone, split
+ * out so the client can recompute it over a filtered subset — fills and funding
+ * events aren't shipped in full, but trades are.
+ */
+export type TradeSummary = {
   closedCount: number;
   openCount: number;
   wins: number;
@@ -43,6 +48,13 @@ export type TradeStats = {
   longs: DirectionStats;
   shorts: DirectionStats;
   pnlByCoin: CoinPnl[];
+  /** Mean MFE/MAE (fraction of entry) over closed trades with candle data. */
+  avgMfePct: number | null;
+  avgMaePct: number | null;
+  excursionSamples: number;
+};
+
+export type TradeStats = TradeSummary & {
   /** Σ |px·sz| over perp fills in the window (both opens and closes). */
   perpVolume: number;
   /** Σ |px·sz| over HIP-4 outcome-market fills in the window. */
@@ -55,10 +67,6 @@ export type TradeStats = {
   netFunding: number;
   fundingReceived: number;
   fundingPaid: number;
-  /** Mean MFE/MAE (fraction of entry) over closed trades with candle data. */
-  avgMfePct: number | null;
-  avgMaePct: number | null;
-  excursionSamples: number;
 };
 
 const num = (s: string | undefined | null): number => {
@@ -66,11 +74,7 @@ const num = (s: string | undefined | null): number => {
   return Number.isFinite(v) ? v : 0;
 };
 
-export function computeStats(
-  trades: Trade[],
-  fills: HlFill[],
-  fundingEvents: HlFundingEvent[],
-): TradeStats {
+export function summarizeTrades(trades: Trade[]): TradeSummary {
   const closed = trades.filter((t) => t.status === "closed");
   const open = trades.filter((t) => t.status === "open");
 
@@ -79,8 +83,8 @@ export function computeStats(
   let flats = 0;
   let winSum = 0;
   let lossSum = 0;
-  let largestWin: TradeStats["largestWin"] = null;
-  let largestLoss: TradeStats["largestLoss"] = null;
+  let largestWin: TradeSummary["largestWin"] = null;
+  let largestLoss: TradeSummary["largestLoss"] = null;
   const durations: number[] = [];
 
   const longs: DirectionStats = { count: 0, wins: 0, losses: 0, netPnl: 0 };
@@ -145,35 +149,6 @@ export function computeStats(
     ? durations.reduce((a, b) => a + b, 0) / durations.length
     : null;
 
-  let perpVolume = 0;
-  let outcomeVolume = 0;
-  let totalUsdcFees = 0;
-  const feesByToken: Record<string, number> = {};
-  for (const f of fills) {
-    const notional = num(f.px) * num(f.sz);
-    if (isOutcomeCoin(f.coin)) outcomeVolume += notional;
-    else if (!isSpotCoin(f.coin)) perpVolume += notional;
-    const fee = num(f.fee);
-    if (f.feeToken === "USDC") totalUsdcFees += fee;
-    else if (f.feeToken)
-      feesByToken[f.feeToken] = (feesByToken[f.feeToken] ?? 0) + fee;
-    totalUsdcFees += num(f.builderFee);
-  }
-
-  // Outcome fills are denominated in their own contract and normally carry a
-  // zero fee, which would otherwise list every market traded as a fee token.
-  for (const [token, amount] of Object.entries(feesByToken)) {
-    if (Math.abs(amount) < 1e-9) delete feesByToken[token];
-  }
-
-  let fundingReceived = 0;
-  let fundingPaid = 0;
-  for (const e of fundingEvents) {
-    const usdc = num(e.delta.usdc);
-    if (usdc >= 0) fundingReceived += usdc;
-    else fundingPaid += usdc;
-  }
-
   const decided = wins + losses;
   const totalNetPnl = trades.reduce((a, t) => a + t.netPnl, 0);
 
@@ -209,6 +184,48 @@ export function computeStats(
     longs,
     shorts,
     pnlByCoin: [...coinMap.values()].sort((a, b) => b.netPnl - a.netPnl),
+    avgMfePct,
+    avgMaePct,
+    excursionSamples: withExcursion.length,
+  };
+}
+
+export function computeStats(
+  trades: Trade[],
+  fills: HlFill[],
+  fundingEvents: HlFundingEvent[],
+): TradeStats {
+  let perpVolume = 0;
+  let outcomeVolume = 0;
+  let totalUsdcFees = 0;
+  const feesByToken: Record<string, number> = {};
+  for (const f of fills) {
+    const notional = num(f.px) * num(f.sz);
+    if (isOutcomeCoin(f.coin)) outcomeVolume += notional;
+    else if (!isSpotCoin(f.coin)) perpVolume += notional;
+    const fee = num(f.fee);
+    if (f.feeToken === "USDC") totalUsdcFees += fee;
+    else if (f.feeToken)
+      feesByToken[f.feeToken] = (feesByToken[f.feeToken] ?? 0) + fee;
+    totalUsdcFees += num(f.builderFee);
+  }
+
+  // Outcome fills are denominated in their own contract and normally carry a
+  // zero fee, which would otherwise list every market traded as a fee token.
+  for (const [token, amount] of Object.entries(feesByToken)) {
+    if (Math.abs(amount) < 1e-9) delete feesByToken[token];
+  }
+
+  let fundingReceived = 0;
+  let fundingPaid = 0;
+  for (const e of fundingEvents) {
+    const usdc = num(e.delta.usdc);
+    if (usdc >= 0) fundingReceived += usdc;
+    else fundingPaid += usdc;
+  }
+
+  return {
+    ...summarizeTrades(trades),
     perpVolume,
     outcomeVolume,
     totalUsdcFees,
@@ -216,8 +233,5 @@ export function computeStats(
     netFunding: fundingReceived + fundingPaid,
     fundingReceived,
     fundingPaid,
-    avgMfePct,
-    avgMaePct,
-    excursionSamples: withExcursion.length,
   };
 }

@@ -1,6 +1,12 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import {
+  type Dispatch,
+  Fragment,
+  type SetStateAction,
+  useMemo,
+  useState,
+} from "react";
 import {
   CardField,
   CardList,
@@ -20,7 +26,6 @@ import {
 } from "@/components/ui";
 import type { OutcomeMarketMap, OutcomeMarketView } from "@/lib/api-types";
 import {
-  dateInputMs,
   fmtDuration,
   fmtNetPnlBreakdown,
   fmtPct,
@@ -31,7 +36,12 @@ import {
   fmtUsdSigned,
 } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
-import type { SliceAction, Trade } from "@/lib/trades";
+import {
+  type DateRange,
+  type SliceAction,
+  type Trade,
+  tradesOpenedInRange,
+} from "@/lib/trades";
 
 type ResultFilter = "all" | "wins" | "losses" | "open" | "liquidated";
 type DirFilter = "all" | "long" | "short";
@@ -378,10 +388,15 @@ export function TradesTable({
   trades,
   tradesTotal,
   markets,
+  range,
+  onRangeChange,
 }: {
   trades: Trade[];
   tradesTotal: number;
   markets: OutcomeMarketMap;
+  /** Opened-date bounds; lifted so the performance strip shares them. */
+  range: DateRange;
+  onRangeChange: Dispatch<SetStateAction<DateRange>>;
 }) {
   const [view, setView] = useViewMode();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -389,9 +404,6 @@ export function TradesTable({
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
   const [dirFilter, setDirFilter] = useState<DirFilter>("all");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
-  // Native date-input values ("YYYY-MM-DD", "" = unbounded).
-  const [openedFrom, setOpenedFrom] = useState("");
-  const [openedTo, setOpenedTo] = useState("");
   const [visible, setVisible] = useState(PAGE);
 
   // Outcome markets get their real name in the picker; a bare "#8560" is
@@ -414,39 +426,27 @@ export function TradesTable({
     [trades],
   );
 
-  const filtered = useMemo(() => {
-    const fromMs = dateInputMs(openedFrom);
-    // Exclusive upper bound at the next day's midnight keeps the whole
-    // "to" day in range.
-    const toMs = dateInputMs(openedTo, { dayOffset: 1 });
-    return trades.filter((t) => {
-      if (coinFilter !== "all" && t.coin !== coinFilter) return false;
-      if (kindFilter !== "all" && t.kind !== kindFilter) return false;
-      if (dirFilter !== "all" && t.direction !== dirFilter) return false;
-      if (fromMs != null && t.openedAt < fromMs) return false;
-      if (toMs != null && t.openedAt >= toMs) return false;
-      switch (resultFilter) {
-        case "wins":
-          return t.isWin === true;
-        case "losses":
-          return t.isWin === false;
-        case "open":
-          return t.status === "open";
-        case "liquidated":
-          return t.liquidated;
-        default:
-          return true;
-      }
-    });
-  }, [
-    trades,
-    coinFilter,
-    resultFilter,
-    dirFilter,
-    kindFilter,
-    openedFrom,
-    openedTo,
-  ]);
+  const filtered = useMemo(
+    () =>
+      tradesOpenedInRange(trades, range).filter((t) => {
+        if (coinFilter !== "all" && t.coin !== coinFilter) return false;
+        if (kindFilter !== "all" && t.kind !== kindFilter) return false;
+        if (dirFilter !== "all" && t.direction !== dirFilter) return false;
+        switch (resultFilter) {
+          case "wins":
+            return t.isWin === true;
+          case "losses":
+            return t.isWin === false;
+          case "open":
+            return t.status === "open";
+          case "liquidated":
+            return t.liquidated;
+          default:
+            return true;
+        }
+      }),
+    [trades, range, coinFilter, resultFilter, dirFilter, kindFilter],
+  );
 
   const shown = filtered.slice(0, visible);
   const toggle = (id: string) =>
@@ -526,14 +526,14 @@ export function TradesTable({
         </FilterSelect>
         {/* Bounds the open date — the date every row shows. */}
         <FilterDateRange
-          from={openedFrom}
-          to={openedTo}
+          from={range.from}
+          to={range.to}
           onFromChange={(v) => {
-            setOpenedFrom(v);
+            onRangeChange((r) => ({ ...r, from: v }));
             setVisible(PAGE);
           }}
           onToChange={(v) => {
-            setOpenedTo(v);
+            onRangeChange((r) => ({ ...r, to: v }));
             setVisible(PAGE);
           }}
           label="Trades opened"

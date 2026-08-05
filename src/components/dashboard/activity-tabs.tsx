@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { marketName, Pnl, RefreshButton, Skeleton } from "@/components/ui";
 import type {
   ActivityPayload,
   OrderView,
   OutcomeMarketMap,
 } from "@/lib/api-types";
-import { fmtDay, fmtDuration, fmtPct, fmtUsd } from "@/lib/format";
+import { dateInputMs, fmtDay, fmtDuration, fmtPct, fmtUsd } from "@/lib/format";
+import { summarizeTrades, type TradeSummary } from "@/lib/stats";
+import {
+  type DateRange,
+  hasDateRange,
+  NO_DATE_RANGE,
+  tradesOpenedInRange,
+} from "@/lib/trades";
 import { FillsTable } from "./fills-table";
 import { FundingTable } from "./funding-table";
 import { OrdersTable } from "./orders-table";
@@ -16,8 +23,25 @@ import { TransfersTable } from "./transfers-table";
 
 type Tab = "trades" | "fills" | "funding" | "transfers" | "orders";
 
-function PerformanceStrip({ activity }: { activity: ActivityPayload }) {
-  const s = activity.stats;
+/** "Mar 3 → Apr 2", or one-sided when only one bound is set. */
+function rangeLabel(range: DateRange): string {
+  const from = dateInputMs(range.from);
+  const to = dateInputMs(range.to);
+  if (from != null && to != null) return `${fmtDay(from)} → ${fmtDay(to)}`;
+  if (from != null) return `on or after ${fmtDay(from)}`;
+  return to != null ? `on or before ${fmtDay(to)}` : "";
+}
+
+function PerformanceStrip({
+  stats: s,
+  markets,
+  range,
+}: {
+  stats: TradeSummary;
+  markets: OutcomeMarketMap;
+  /** Date range the stats are scoped to; null when they cover all trades. */
+  range: DateRange | null;
+}) {
   const items: { label: string; node: React.ReactNode; hint?: string }[] = [
     {
       label: "Profit factor",
@@ -64,7 +88,7 @@ function PerformanceStrip({ activity }: { activity: ActivityPayload }) {
         <span>
           <Pnl value={s.largestWin.netPnl} compact className="text-[13px]" />
           <span className="ml-1 text-[11px] text-ink3">
-            {marketName(s.largestWin.coin, activity.outcomeMarkets)}
+            {marketName(s.largestWin.coin, markets)}
           </span>
         </span>
       ) : (
@@ -77,7 +101,7 @@ function PerformanceStrip({ activity }: { activity: ActivityPayload }) {
         <span>
           <Pnl value={s.largestLoss.netPnl} compact className="text-[13px]" />
           <span className="ml-1 text-[11px] text-ink3">
-            {marketName(s.largestLoss.coin, activity.outcomeMarkets)}
+            {marketName(s.largestLoss.coin, markets)}
           </span>
         </span>
       ) : (
@@ -125,16 +149,27 @@ function PerformanceStrip({ activity }: { activity: ActivityPayload }) {
         ),
     },
   ];
+  const scopedCount = s.closedCount + s.openCount;
   return (
-    <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-b border-edge px-4 py-3.5 sm:grid-cols-4 lg:grid-cols-5">
-      {items.map((item) => (
-        <div key={item.label} title={item.hint}>
-          <p className="text-[10px] font-medium tracking-wide text-ink3 uppercase">
-            {item.label}
-          </p>
-          <p className="mt-0.5 text-[13px]">{item.node}</p>
-        </div>
-      ))}
+    <div className="border-b border-edge px-4 py-3.5">
+      {/* Without this the strip reads as all-time even when the filter row
+        below it has narrowed the set these numbers describe. */}
+      {range && (
+        <p className="mb-3 text-[11px] text-ink3">
+          {scopedCount.toLocaleString()} trade{scopedCount === 1 ? "" : "s"}{" "}
+          opened {rangeLabel(range)}
+        </p>
+      )}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 lg:grid-cols-5">
+        {items.map((item) => (
+          <div key={item.label} title={item.hint}>
+            <p className="text-[10px] font-medium tracking-wide text-ink3 uppercase">
+              {item.label}
+            </p>
+            <p className="mt-0.5 text-[13px]">{item.node}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -191,6 +226,22 @@ export function ActivityTabs({
   refreshing: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("trades");
+  // Owned here rather than in the table because the performance strip is
+  // scoped to the same range.
+  const [range, setRange] = useState<DateRange>(NO_DATE_RANGE);
+
+  const scoped = hasDateRange(range);
+  const rangeTrades = useMemo(
+    () =>
+      activity && scoped ? tradesOpenedInRange(activity.trades, range) : [],
+    [activity, scoped, range],
+  );
+  // All-time stats come from the server, which sees every trade; the payload's
+  // trade list is capped, so it can only stand in for a narrowed range.
+  const stats = useMemo(
+    () => (scoped ? summarizeTrades(rangeTrades) : null),
+    [scoped, rangeTrades],
+  );
 
   const tabs: { value: Tab; label: string; count: number | null }[] = [
     {
@@ -287,11 +338,17 @@ export function ActivityTabs({
         <>
           {tab === "trades" && (
             <>
-              <PerformanceStrip activity={activity} />
+              <PerformanceStrip
+                stats={stats ?? activity.stats}
+                markets={activity.outcomeMarkets}
+                range={scoped ? range : null}
+              />
               <TradesTable
                 trades={activity.trades}
                 tradesTotal={activity.tradesTotal}
                 markets={activity.outcomeMarkets}
+                range={range}
+                onRangeChange={setRange}
               />
             </>
           )}

@@ -1,3 +1,4 @@
+import { dateInputMs } from "./format";
 import { isOutcomeCoin } from "./hyperliquid/outcome";
 import type { HlFill, HlFundingEvent } from "./hyperliquid/types";
 
@@ -94,6 +95,32 @@ export type Trade = {
 
 export function isSpotCoin(coin: string): boolean {
   return coin.startsWith("@") || coin.includes("/");
+}
+
+/** Inclusive date-input bounds ("YYYY-MM-DD"); "" on either end = unbounded. */
+export type DateRange = { from: string; to: string };
+
+export const NO_DATE_RANGE: DateRange = { from: "", to: "" };
+
+export function hasDateRange(range: DateRange): boolean {
+  return range.from !== "" || range.to !== "";
+}
+
+/** Trades whose open falls inside `range`; the whole "to" day is included. */
+export function tradesOpenedInRange(
+  trades: Trade[],
+  range: DateRange,
+): Trade[] {
+  if (!hasDateRange(range)) return trades;
+  const fromMs = dateInputMs(range.from);
+  // Exclusive upper bound at the next day's midnight keeps the whole
+  // "to" day in range.
+  const toMs = dateInputMs(range.to, { dayOffset: 1 });
+  return trades.filter(
+    (t) =>
+      (fromMs == null || t.openedAt >= fromMs) &&
+      (toMs == null || t.openedAt < toMs),
+  );
 }
 
 const num = (s: string | undefined | null): number => {

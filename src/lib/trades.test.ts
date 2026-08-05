@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { HlFill, HlFundingEvent } from "./hyperliquid/types";
-import { computeStats } from "./stats";
-import { attributeFunding, groupTrades } from "./trades";
+import { computeStats, summarizeTrades } from "./stats";
+import {
+  attributeFunding,
+  groupTrades,
+  hasDateRange,
+  NO_DATE_RANGE,
+  tradesOpenedInRange,
+} from "./trades";
 
 let tid = 1;
 function fill(
@@ -467,6 +473,94 @@ describe("computeStats", () => {
     expect(stats.pnlByCoin[0].coin).toBe("ETH");
     expect(stats.longs.count).toBe(1);
     expect(stats.shorts.count).toBe(1);
+  });
+});
+
+describe("tradesOpenedInRange", () => {
+  // Local midnight, matching how the date inputs are read.
+  const at = (day: number, hour = 12) => new Date(2026, 2, day, hour).getTime();
+
+  // A +$98 ETH winner opened Mar 1, a −$101 SOL loser opened Mar 10.
+  const trades = groupTrades([
+    fill({
+      coin: "ETH",
+      px: "2000",
+      sz: "1",
+      side: "B",
+      time: at(1),
+      startPosition: "0.0",
+      fee: "1.0",
+    }),
+    fill({
+      coin: "ETH",
+      px: "2100",
+      sz: "1",
+      side: "A",
+      time: at(2),
+      startPosition: "1.0",
+      closedPnl: "100.0",
+      fee: "1.0",
+    }),
+    fill({
+      coin: "SOL",
+      px: "100",
+      sz: "10",
+      side: "B",
+      // Late in the day, to catch an exclusive "to" bound.
+      time: at(10, 23),
+      startPosition: "0.0",
+      fee: "0.5",
+    }),
+    fill({
+      coin: "SOL",
+      px: "90",
+      sz: "10",
+      side: "A",
+      time: at(11),
+      startPosition: "10.0",
+      closedPnl: "-100.0",
+      fee: "0.5",
+    }),
+  ]);
+
+  it("returns every trade when neither bound is set", () => {
+    expect(hasDateRange(NO_DATE_RANGE)).toBe(false);
+    expect(tradesOpenedInRange(trades, NO_DATE_RANGE)).toHaveLength(2);
+  });
+
+  it("bounds on the open date, inclusive of the whole 'to' day", () => {
+    const from = tradesOpenedInRange(trades, {
+      from: "2026-03-10",
+      to: "",
+    });
+    expect(from.map((t) => t.coin)).toEqual(["SOL"]);
+
+    // SOL opened at 23:00 on the 10th, so an inclusive end date keeps it.
+    const to = tradesOpenedInRange(trades, { from: "", to: "2026-03-10" });
+    expect(to.map((t) => t.coin)).toEqual(["SOL", "ETH"]);
+
+    const window = tradesOpenedInRange(trades, {
+      from: "2026-03-02",
+      to: "2026-03-09",
+    });
+    expect(window).toHaveLength(0);
+  });
+
+  it("summarizes a filtered subset independently of the full set", () => {
+    const all = summarizeTrades(trades);
+    expect(all.wins).toBe(1);
+    expect(all.losses).toBe(1);
+    expect(all.profitFactor).toBeCloseTo(98 / 101);
+
+    const winnerOnly = summarizeTrades(
+      tradesOpenedInRange(trades, { from: "", to: "2026-03-01" }),
+    );
+    expect(winnerOnly.closedCount).toBe(1);
+    expect(winnerOnly.losses).toBe(0);
+    // No losing trade in range, so the ratio has no denominator.
+    expect(winnerOnly.profitFactor).toBeNull();
+    expect(winnerOnly.avgWin).toBeCloseTo(98);
+    expect(winnerOnly.totalNetPnl).toBeCloseTo(98);
   });
 });
 
