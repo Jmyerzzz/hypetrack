@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { HlFill, HlFundingEvent } from "./hyperliquid/types";
 import { computeStats, summarizeTrades } from "./stats";
 import {
+  ALL_TIME_WINDOW,
   attributeFunding,
   groupTrades,
-  hasDateRange,
-  NO_DATE_RANGE,
-  tradesOpenedInRange,
+  isScoped,
+  type TimeWindow,
+  tradesInWindow,
+  windowLabel,
 } from "./trades";
 
 let tid = 1;
@@ -476,7 +478,7 @@ describe("computeStats", () => {
   });
 });
 
-describe("tradesOpenedInRange", () => {
+describe("tradesInWindow", () => {
   // Local midnight, matching how the date inputs are read.
   const at = (day: number, hour = 12) => new Date(2026, 2, day, hour).getTime();
 
@@ -523,27 +525,50 @@ describe("tradesOpenedInRange", () => {
     }),
   ]);
 
+  const custom = (from: string, to: string): TimeWindow => ({
+    preset: "custom",
+    from,
+    to,
+  });
+
   it("returns every trade when neither bound is set", () => {
-    expect(hasDateRange(NO_DATE_RANGE)).toBe(false);
-    expect(tradesOpenedInRange(trades, NO_DATE_RANGE)).toHaveLength(2);
+    expect(isScoped(ALL_TIME_WINDOW)).toBe(false);
+    expect(tradesInWindow(trades, ALL_TIME_WINDOW)).toHaveLength(2);
+    // An empty custom range is the same thing as all-time.
+    expect(isScoped(custom("", ""))).toBe(false);
+    expect(tradesInWindow(trades, custom("", ""))).toHaveLength(2);
   });
 
   it("bounds on the open date, inclusive of the whole 'to' day", () => {
-    const from = tradesOpenedInRange(trades, {
-      from: "2026-03-10",
-      to: "",
-    });
+    const from = tradesInWindow(trades, custom("2026-03-10", ""));
     expect(from.map((t) => t.coin)).toEqual(["SOL"]);
 
     // SOL opened at 23:00 on the 10th, so an inclusive end date keeps it.
-    const to = tradesOpenedInRange(trades, { from: "", to: "2026-03-10" });
+    const to = tradesInWindow(trades, custom("", "2026-03-10"));
     expect(to.map((t) => t.coin)).toEqual(["SOL", "ETH"]);
 
-    const window = tradesOpenedInRange(trades, {
-      from: "2026-03-02",
-      to: "2026-03-09",
-    });
-    expect(window).toHaveLength(0);
+    expect(
+      tradesInWindow(trades, custom("2026-03-02", "2026-03-09")),
+    ).toHaveLength(0);
+  });
+
+  it("measures relative presets back from now", () => {
+    // "now" sits two days after the SOL open, so 7D keeps it and 24H doesn't.
+    const now = at(13);
+    const preset = (p: TimeWindow["preset"]): string[] =>
+      tradesInWindow(trades, { preset: p, from: "", to: "" }, now).map(
+        (t) => t.coin,
+      );
+    expect(preset("day")).toEqual([]);
+    expect(preset("week")).toEqual(["SOL"]);
+    expect(preset("month")).toEqual(["SOL", "ETH"]);
+    expect(preset("allTime")).toEqual(["SOL", "ETH"]);
+  });
+
+  it("labels the window", () => {
+    expect(windowLabel(ALL_TIME_WINDOW)).toBe("All");
+    expect(windowLabel({ preset: "month", from: "", to: "" })).toBe("30D");
+    expect(windowLabel(custom("2026-03-02", "2026-03-09"))).toContain("→");
   });
 
   it("summarizes a filtered subset independently of the full set", () => {
@@ -553,7 +578,7 @@ describe("tradesOpenedInRange", () => {
     expect(all.profitFactor).toBeCloseTo(98 / 101);
 
     const winnerOnly = summarizeTrades(
-      tradesOpenedInRange(trades, { from: "", to: "2026-03-01" }),
+      tradesInWindow(trades, custom("", "2026-03-01")),
     );
     expect(winnerOnly.closedCount).toBe(1);
     expect(winnerOnly.losses).toBe(0);

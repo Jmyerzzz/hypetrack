@@ -1,21 +1,28 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AddressForm } from "@/components/address-form";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RefreshButton, Skeleton } from "@/components/ui";
 import { fmtAgo, shortAddress } from "@/lib/format";
 import { rememberAddress, useActivity, useOverview } from "@/lib/hooks";
+import { summarizeTrades } from "@/lib/stats";
+import {
+  ALL_TIME_WINDOW,
+  isScoped,
+  type TimeWindow,
+  tradesInWindow,
+} from "@/lib/trades";
 import { AccountBreakdown } from "./account-breakdown";
 import { ActivityTabs } from "./activity-tabs";
 import { EquityChart } from "./equity-chart";
 import { OutcomePositions } from "./outcome-positions";
 import { PnlByCoin } from "./pnl-by-coin";
 import { PositionsTable } from "./positions-table";
-import { RiskCard } from "./risk-card";
 import { StatCards } from "./stat-cards";
+import { WindowPicker } from "./window-picker";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -84,6 +91,21 @@ export function Dashboard({ address }: { address: string }) {
   const overview = useOverview(address);
   const activity = useActivity(address);
   const queryClient = useQueryClient();
+  // One window for the whole page; every trade-derived figure below reads it.
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>(ALL_TIME_WINDOW);
+
+  // Recomputed here rather than per section so the cards, the PnL split, the
+  // performance strip and the table can't disagree about the same window.
+  // All-time stays on the server's summary: it sees every trade, while the
+  // payload's trade list is capped and can only stand in for a narrower window.
+  const trades = activity.data?.trades;
+  const summary = useMemo(
+    () =>
+      trades && isScoped(timeWindow)
+        ? summarizeTrades(tradesInWindow(trades, timeWindow))
+        : null,
+    [trades, timeWindow],
+  );
 
   useEffect(() => {
     rememberAddress(address);
@@ -188,12 +210,23 @@ export function Dashboard({ address }: { address: string }) {
               </div>
             )}
 
-            <StatCards overview={overview.data} activity={activity.data} />
+            <div className="flex flex-wrap items-center gap-3">
+              <WindowPicker timeWindow={timeWindow} onChange={setTimeWindow} />
+            </div>
+
+            <StatCards
+              overview={overview.data}
+              activity={activity.data}
+              summary={summary}
+            />
 
             <div className="grid gap-5 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 {overview.data ? (
-                  <EquityChart portfolio={overview.data.portfolio} />
+                  <EquityChart
+                    portfolio={overview.data.portfolio}
+                    timeWindow={timeWindow}
+                  />
                 ) : (
                   <Skeleton className="h-[404px]" />
                 )}
@@ -204,13 +237,9 @@ export function Dashboard({ address }: { address: string }) {
                 ) : (
                   <Skeleton className="h-[192px]" />
                 )}
-                {overview.data ? (
-                  <RiskCard risk={overview.data.risk} />
-                ) : (
-                  <Skeleton className="h-[140px]" />
-                )}
                 <PnlByCoin
                   activity={activity.data}
+                  summary={summary}
                   pending={activity.isPending}
                 />
               </div>
@@ -233,6 +262,9 @@ export function Dashboard({ address }: { address: string }) {
 
             <ActivityTabs
               activity={activity.data}
+              summary={summary}
+              timeWindow={timeWindow}
+              portfolio={overview.data?.portfolio}
               pending={activity.isPending}
               error={activity.isError ? (activity.error as Error) : null}
               onRetry={() => activity.refetch()}

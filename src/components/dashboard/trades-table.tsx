@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  type Dispatch,
-  Fragment,
-  type SetStateAction,
-  useMemo,
-  useState,
-} from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   CardField,
   CardList,
@@ -14,7 +8,6 @@ import {
   DirectionBadge,
   EmptyState,
   ExplorerLink,
-  FilterDateRange,
   FilterRow,
   FilterSelect,
   MarketTag,
@@ -37,10 +30,10 @@ import {
 } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
 import {
-  type DateRange,
   type SliceAction,
+  type TimeWindow,
   type Trade,
-  tradesOpenedInRange,
+  tradesInWindow,
 } from "@/lib/trades";
 
 type ResultFilter = "all" | "wins" | "losses" | "open" | "liquidated";
@@ -388,15 +381,13 @@ export function TradesTable({
   trades,
   tradesTotal,
   markets,
-  range,
-  onRangeChange,
+  timeWindow,
 }: {
   trades: Trade[];
   tradesTotal: number;
   markets: OutcomeMarketMap;
-  /** Opened-date bounds; lifted so the performance strip shares them. */
-  range: DateRange;
-  onRangeChange: Dispatch<SetStateAction<DateRange>>;
+  /** The page's window; bounds the open date, which is the date rows show. */
+  timeWindow: TimeWindow;
 }) {
   const [view, setView] = useViewMode();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -405,6 +396,14 @@ export function TradesTable({
   const [dirFilter, setDirFilter] = useState<DirFilter>("all");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [visible, setVisible] = useState(PAGE);
+
+  // The window is set outside this table, so paging is reset here rather than
+  // in the control that changed it.
+  const [pagedWindow, setPagedWindow] = useState(timeWindow);
+  if (pagedWindow !== timeWindow) {
+    setPagedWindow(timeWindow);
+    setVisible(PAGE);
+  }
 
   // Outcome markets get their real name in the picker; a bare "#8560" is
   // unrecognizable, and several sides of one question would look identical.
@@ -428,7 +427,7 @@ export function TradesTable({
 
   const filtered = useMemo(
     () =>
-      tradesOpenedInRange(trades, range).filter((t) => {
+      tradesInWindow(trades, timeWindow).filter((t) => {
         if (coinFilter !== "all" && t.coin !== coinFilter) return false;
         if (kindFilter !== "all" && t.kind !== kindFilter) return false;
         if (dirFilter !== "all" && t.direction !== dirFilter) return false;
@@ -445,7 +444,7 @@ export function TradesTable({
             return true;
         }
       }),
-    [trades, range, coinFilter, resultFilter, dirFilter, kindFilter],
+    [trades, timeWindow, coinFilter, resultFilter, dirFilter, kindFilter],
   );
 
   const shown = filtered.slice(0, visible);
@@ -524,20 +523,6 @@ export function TradesTable({
           <option value="long">Long</option>
           <option value="short">Short</option>
         </FilterSelect>
-        {/* Bounds the open date — the date every row shows. */}
-        <FilterDateRange
-          from={range.from}
-          to={range.to}
-          onFromChange={(v) => {
-            onRangeChange((r) => ({ ...r, from: v }));
-            setVisible(PAGE);
-          }}
-          onToChange={(v) => {
-            onRangeChange((r) => ({ ...r, to: v }));
-            setVisible(PAGE);
-          }}
-          label="Trades opened"
-        />
       </FilterRow>
 
       {view === "cards" ? (

@@ -1,4 +1,4 @@
-import { dateInputMs } from "./format";
+import { dateInputMs, fmtDay } from "./format";
 import { isOutcomeCoin } from "./hyperliquid/outcome";
 import type { HlFill, HlFundingEvent } from "./hyperliquid/types";
 
@@ -100,26 +100,89 @@ export function isSpotCoin(coin: string): boolean {
 /** Inclusive date-input bounds ("YYYY-MM-DD"); "" on either end = unbounded. */
 export type DateRange = { from: string; to: string };
 
-export const NO_DATE_RANGE: DateRange = { from: "", to: "" };
+/**
+ * The relative presets deliberately carry the same names as Hyperliquid's
+ * portfolio buckets: the equity curve and the risk metrics can then read the
+ * series the API already samples for exactly that span instead of resampling
+ * a longer one. `custom` is the from/to date pair.
+ */
+export type WindowPreset = "day" | "week" | "month" | "allTime" | "custom";
 
-export function hasDateRange(range: DateRange): boolean {
-  return range.from !== "" || range.to !== "";
+/** The dashboard's single time scope — everything trade-derived follows it. */
+export type TimeWindow = DateRange & { preset: WindowPreset };
+
+export const ALL_TIME_WINDOW: TimeWindow = {
+  preset: "allTime",
+  from: "",
+  to: "",
+};
+
+export const WINDOW_PRESETS: { value: WindowPreset; label: string }[] = [
+  { value: "day", label: "24H" },
+  { value: "week", label: "7D" },
+  { value: "month", label: "30D" },
+  { value: "allTime", label: "All" },
+];
+
+const DAY_MS = 86_400_000;
+
+const PRESET_SPAN_MS: Partial<Record<WindowPreset, number>> = {
+  day: DAY_MS,
+  week: 7 * DAY_MS,
+  month: 30 * DAY_MS,
+};
+
+/** Inclusive lower / exclusive upper bound in ms; null on either end = open. */
+export type WindowBounds = { from: number | null; to: number | null };
+
+export function windowBounds(
+  window: TimeWindow,
+  now: number = Date.now(),
+): WindowBounds {
+  const span = PRESET_SPAN_MS[window.preset];
+  if (span != null) return { from: now - span, to: null };
+  if (window.preset === "custom") {
+    return {
+      from: dateInputMs(window.from),
+      // Exclusive upper bound at the next day's midnight keeps the whole
+      // "to" day in range.
+      to: dateInputMs(window.to, { dayOffset: 1 }),
+    };
+  }
+  return { from: null, to: null };
 }
 
-/** Trades whose open falls inside `range`; the whole "to" day is included. */
-export function tradesOpenedInRange(
+/** False when the window covers everything the account has ever done. */
+export function isScoped(window: TimeWindow, now?: number): boolean {
+  const { from, to } = windowBounds(window, now);
+  return from != null || to != null;
+}
+
+/** Short label for the selected window: "30D", "All", "Jun 25 → Jul 2". */
+export function windowLabel(window: TimeWindow): string {
+  if (window.preset !== "custom") {
+    return (
+      WINDOW_PRESETS.find((p) => p.value === window.preset)?.label ?? "All"
+    );
+  }
+  const from = dateInputMs(window.from);
+  const to = dateInputMs(window.to);
+  if (from != null && to != null) return `${fmtDay(from)} → ${fmtDay(to)}`;
+  if (from != null) return `from ${fmtDay(from)}`;
+  return to != null ? `through ${fmtDay(to)}` : "All";
+}
+
+/** Trades whose open falls inside the window. */
+export function tradesInWindow(
   trades: Trade[],
-  range: DateRange,
+  window: TimeWindow,
+  now?: number,
 ): Trade[] {
-  if (!hasDateRange(range)) return trades;
-  const fromMs = dateInputMs(range.from);
-  // Exclusive upper bound at the next day's midnight keeps the whole
-  // "to" day in range.
-  const toMs = dateInputMs(range.to, { dayOffset: 1 });
+  const { from, to } = windowBounds(window, now);
+  if (from == null && to == null) return trades;
   return trades.filter(
     (t) =>
-      (fromMs == null || t.openedAt >= fromMs) &&
-      (toMs == null || t.openedAt < toMs),
+      (from == null || t.openedAt >= from) && (to == null || t.openedAt < to),
   );
 }
 

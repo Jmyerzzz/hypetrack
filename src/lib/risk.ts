@@ -1,4 +1,5 @@
 import type { PortfolioPoint, PortfolioSeries } from "./api-types";
+import { type TimeWindow, type WindowBounds, windowBounds } from "./trades";
 
 export type RiskMetrics = {
   /** Annualized (√365) from daily perp PnL returns over ~30 days. */
@@ -149,14 +150,57 @@ export function accountValueMaxDrawdown(
   return seen ? { usd: usdAtMaxPct, pct: maxPct } : null;
 }
 
-export function computeRiskMetrics(
-  month: PortfolioSeries | undefined,
+const EMPTY_RISK: RiskMetrics = {
+  sharpe: null,
+  sortino: null,
+  maxDrawdownUsd: null,
+  maxDrawdownPct: null,
+  dailySamples: 0,
+};
+
+/** Points inside the bounds; an open end keeps everything on that side. */
+function slice(points: PortfolioPoint[], b: WindowBounds): PortfolioPoint[] {
+  if (b.from == null && b.to == null) return points;
+  return points.filter(
+    (p) => (b.from == null || p.t >= b.from) && (b.to == null || p.t < b.to),
+  );
+}
+
+/**
+ * Risk over the selected window. A relative preset reads the portfolio bucket
+ * Hyperliquid samples for exactly that span; a custom range slices the
+ * all-time series, which is sampled daily — so a short custom range can fall
+ * under {@link MIN_DAILY_SAMPLES} and report no ratios, by design.
+ */
+export function riskInWindow(
+  portfolio: Record<string, PortfolioSeries> | undefined,
+  window: TimeWindow,
+  now?: number,
 ): RiskMetrics {
-  const returns = month ? dailyReturns(month.accountValue, month.pnl) : [];
+  if (!portfolio) return EMPTY_RISK;
+  const relative = window.preset !== "custom" && window.preset !== "allTime";
+  const series = portfolio[relative ? window.preset : "allTime"];
+  if (!series) return EMPTY_RISK;
+  // The bucket already spans the preset, so only custom ranges need cutting.
+  const bounds: WindowBounds = relative
+    ? { from: null, to: null }
+    : windowBounds(window, now);
+
+  const returns = dailyReturns(
+    slice(series.accountValue, bounds),
+    slice(series.pnl, bounds),
+    now,
+  );
   const { sharpe, sortino } = sharpeSortino(returns);
-  // Drawdown tracks the combined (perp + spot) account value over the 30-day
-  // window, matching Hyperliquid's portfolio "Max Drawdown".
-  const dd = month ? accountValueMaxDrawdown(month.combinedValue) : null;
+  // Drawdown tracks the combined (perp + spot) account value, matching
+  // Hyperliquid's portfolio "Max Drawdown".
+  const equity = slice(
+    series.combinedValue.length ? series.combinedValue : series.accountValue,
+    bounds,
+  );
+  // One sample can't fall from a peak: reporting its −$0.00 (0.00%) would read
+  // as "never drew down" when the window simply has no curve to measure.
+  const dd = equity.length > 1 ? accountValueMaxDrawdown(equity) : null;
   return {
     sharpe,
     sortino,

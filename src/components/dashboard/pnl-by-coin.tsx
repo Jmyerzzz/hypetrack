@@ -3,12 +3,16 @@
 import { marketName, Skeleton } from "@/components/ui";
 import type { ActivityPayload } from "@/lib/api-types";
 import { fmtUsdSigned } from "@/lib/format";
+import type { TradeSummary } from "@/lib/stats";
 
 export function PnlByCoin({
   activity,
+  summary,
   pending,
 }: {
   activity: ActivityPayload | undefined;
+  /** Window-scoped trade summary; null when the window covers everything. */
+  summary: TradeSummary | null;
   pending: boolean;
 }) {
   if (pending || !activity) {
@@ -26,7 +30,7 @@ export function PnlByCoin({
     );
   }
 
-  const byCoin = activity.stats.pnlByCoin;
+  const byCoin = (summary ?? activity.stats).pnlByCoin;
   const sorted = [...byCoin].sort(
     (a, b) => Math.abs(b.netPnl) - Math.abs(a.netPnl),
   );
@@ -54,11 +58,13 @@ export function PnlByCoin({
         <h2 className="text-[11px] font-medium tracking-wide text-ink3 uppercase">
           Net PnL by coin
         </h2>
-        <span className="text-[11px] text-ink3">trade window</span>
+        <span className="text-[11px] text-ink3">
+          {summary ? "selected window" : "all trades"}
+        </span>
       </div>
       {rows.length === 0 ? (
         <p className="mt-4 text-[13px] text-ink3">
-          No trades in the loaded window.
+          No trades in the selected window.
         </p>
       ) : (
         <div className="mt-3 space-y-1.5">

@@ -2,7 +2,8 @@
 
 import { Pnl, Skeleton } from "@/components/ui";
 import type { ActivityPayload, OverviewPayload } from "@/lib/api-types";
-import { fmtPct, fmtUsd, fmtUsdSigned } from "@/lib/format";
+import { fmtUsd, fmtUsdSigned } from "@/lib/format";
+import type { TradeSummary } from "@/lib/stats";
 
 function Card({
   label,
@@ -30,49 +31,33 @@ function Card({
   );
 }
 
-const PCT_HINT =
-  "PnL over this window divided by the account's time-averaged total equity in the window — a Modified-Dietz-style return that stays stable under deposits and withdrawals.";
-
 const FLOW_HINT =
   "External capital moved in and out of this account — bridge deposits and withdrawals plus peer transfers. Spot↔perp movements are excluded, and transfers of unpriced tokens can't be valued.";
 
-function PctChip({ pct }: { pct: number | null }) {
-  if (pct == null) return null;
-  const tone =
-    pct > 0
-      ? "bg-up/12 text-upt"
-      : pct < 0
-        ? "bg-down/12 text-downt"
-        : "bg-panel2 text-ink2";
-  return (
-    <span
-      title={PCT_HINT}
-      className={`num rounded-md px-1.5 py-0.5 text-xs font-semibold ${tone}`}
-    >
-      {fmtPct(pct, { signed: true })}
-    </span>
-  );
-}
-
+/**
+ * Point-in-time and lifetime figures only: PnL over the selected window lives
+ * on the equity chart, and the trade-quality metrics live in the performance
+ * strip above the trade table. What remains here is what a window can't scope.
+ */
 export function StatCards({
   overview,
   activity,
+  summary,
 }: {
   overview: OverviewPayload | undefined;
   activity: ActivityPayload | undefined;
+  /** Window-scoped trade summary; null when the window covers everything. */
+  summary: TradeSummary | null;
 }) {
-  const allTime = overview?.pnlSummary.find((p) => p.period === "allTime");
-  const month = overview?.pnlSummary.find((p) => p.period === "month");
-  const day = overview?.pnlSummary.find((p) => p.period === "day");
   const stats = activity?.stats;
   const netDeposits = activity
     ? activity.totalDeposited - activity.totalWithdrawn
     : null;
 
-  // Two balanced xl rows (equity + 2, then 4) rather than one row of seven:
-  // at a seventh of the width the cards' money legs wrap mid-number.
+  // Equity spans two of the five columns: at a fifth of the width its money
+  // leg wraps mid-number, and the three trailing cards fill the row exactly.
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
       <Card
         label="Total equity"
         className="col-span-2 sm:col-span-3 xl:col-span-2"
@@ -109,89 +94,17 @@ export function StatCards({
         )}
       </Card>
 
-      <Card
-        label="All-time PnL"
-        sub={
-          overview ? (
-            <span title={PCT_HINT}>% of avg equity</span>
-          ) : (
-            <Skeleton className="h-4 w-24" />
-          )
-        }
-      >
-        {allTime ? (
-          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <Pnl value={allTime.pnl} compact />
-            <PctChip pct={allTime.pct} />
-          </span>
-        ) : (
-          <Skeleton className="h-7 w-28" />
-        )}
-      </Card>
-
-      <Card
-        label="30D PnL"
-        sub={
-          day ? (
-            <span className="num">
-              24H: <Pnl value={day.pnl} compact className="text-xs" />
-            </span>
-          ) : (
-            <Skeleton className="h-4 w-20" />
-          )
-        }
-      >
-        {month ? (
-          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <Pnl value={month.pnl} compact />
-            <PctChip pct={month.pct} />
-          </span>
-        ) : (
-          <Skeleton className="h-7 w-28" />
-        )}
-      </Card>
-
-      <Card
-        label="Win rate"
-        sub={
-          stats ? (
-            <span className="num">
-              {stats.wins}W · {stats.losses}L
-              {stats.flats > 0 ? ` · ${stats.flats} flat` : ""}
-            </span>
-          ) : (
-            <Skeleton className="h-4 w-20" />
-          )
-        }
-      >
-        {stats ? (
-          stats.winRate != null ? (
-            <span className="flex items-center gap-2">
-              <span className="num">
-                {fmtPct(stats.winRate, { digits: 1 })}
-              </span>
-              <span className="flex h-1.5 w-16 overflow-hidden rounded-full bg-panel2">
-                <span
-                  className="bg-up"
-                  style={{ width: `${stats.winRate * 100}%` }}
-                />
-                <span className="ml-[2px] flex-1 bg-down/70" />
-              </span>
-            </span>
-          ) : (
-            <span className="text-ink3">—</span>
-          )
-        ) : (
-          <Skeleton className="h-7 w-24" />
-        )}
-      </Card>
-
+      {/* Lifetime volume with the two shorter Hyperliquid buckets underneath —
+          traded volume isn't reconstructible for an arbitrary window, so this
+          card keeps its own fixed spans rather than following the picker. */}
       <Card
         label="Volume traded"
         sub={
           overview ? (
             <span className="num">
-              30D:{" "}
+              7D:{" "}
+              {fmtUsd(overview.portfolio.week?.volume ?? 0, { compact: true })}{" "}
+              · 30D:{" "}
               {fmtUsd(overview.portfolio.month?.volume ?? 0, { compact: true })}
             </span>
           ) : (
@@ -212,7 +125,11 @@ export function StatCards({
         label="Fees · funding"
         sub={
           stats ? (
-            "over the loaded trade window"
+            summary ? (
+              "attributed to trades in window"
+            ) : (
+              "over the loaded trade window"
+            )
           ) : (
             <Skeleton className="h-4 w-28" />
           )
@@ -223,13 +140,16 @@ export function StatCards({
             <span className="num text-ink2">
               Fees{" "}
               <span className="text-downt">
-                {fmtUsdSigned(-stats.totalUsdcFees, { compact: true })}
+                {fmtUsdSigned(
+                  -(summary ? summary.totalTradeFees : stats.totalUsdcFees),
+                  { compact: true },
+                )}
               </span>
             </span>
             <span className="num text-ink2">
               Fund{" "}
               <Pnl
-                value={stats.netFunding}
+                value={summary ? summary.totalTradeFunding : stats.netFunding}
                 compact
                 className="text-[13px] sm:text-sm"
               />
