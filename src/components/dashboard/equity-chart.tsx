@@ -21,6 +21,10 @@ type Metric = "equity" | "pnl";
 
 const DAY_MS = 86_400_000;
 
+/** Past this span a date is ambiguous without its year — axis and tooltip
+ *  share the threshold so they can't disagree about showing one. */
+const YEAR_NEEDED_MS = 180 * DAY_MS;
+
 type Point = { t: number; v: number; usd: number };
 
 function ChartTooltip({
@@ -150,7 +154,7 @@ export function EquityChart({
         minute: "2-digit",
         hour12: false,
       });
-    if (spanMs > 180 * DAY_MS)
+    if (spanMs > YEAR_NEEDED_MS)
       return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
@@ -285,7 +289,7 @@ export function EquityChart({
                 content={
                   <ChartTooltip
                     metric={metric}
-                    withYear={spanMs > 300 * DAY_MS}
+                    withYear={spanMs > YEAR_NEEDED_MS}
                   />
                 }
                 cursor={{ stroke: "var(--chart-cursor)", strokeWidth: 1 }}

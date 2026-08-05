@@ -3,7 +3,7 @@
 import { marketName, Skeleton } from "@/components/ui";
 import type { ActivityPayload } from "@/lib/api-types";
 import { fmtUsdSigned } from "@/lib/format";
-import type { TradeSummary } from "@/lib/stats";
+import type { WindowSummary } from "@/lib/stats";
 
 export function PnlByCoin({
   activity,
@@ -12,7 +12,7 @@ export function PnlByCoin({
 }: {
   activity: ActivityPayload | undefined;
   /** Window-scoped trade summary; null when the window covers everything. */
-  summary: TradeSummary | null;
+  summary: WindowSummary | null;
   pending: boolean;
 }) {
   if (pending || !activity) {
@@ -30,7 +30,7 @@ export function PnlByCoin({
     );
   }
 
-  const byCoin = (summary ?? activity.stats).pnlByCoin;
+  const byCoin = (summary?.stats ?? activity.stats).pnlByCoin;
   const sorted = [...byCoin].sort(
     (a, b) => Math.abs(b.netPnl) - Math.abs(a.netPnl),
   );
@@ -58,8 +58,19 @@ export function PnlByCoin({
         <h2 className="text-[11px] font-medium tracking-wide text-ink3 uppercase">
           Net PnL by coin
         </h2>
-        <span className="text-[11px] text-ink3">
-          {summary ? "selected window" : "all trades"}
+        <span
+          className="text-[11px] text-ink3"
+          title={
+            summary?.partial
+              ? "Only the most recent trades are shipped to the browser, so a window reaching past that cap splits just the trades that loaded."
+              : undefined
+          }
+        >
+          {summary
+            ? summary.partial
+              ? "selected window · loaded trades"
+              : "selected window"
+            : "all trades"}
         </span>
       </div>
       {rows.length === 0 ? (

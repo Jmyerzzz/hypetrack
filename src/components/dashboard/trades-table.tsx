@@ -397,8 +397,13 @@ export function TradesTable({
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [visible, setVisible] = useState(PAGE);
 
-  // The window is set outside this table, so paging is reset here rather than
-  // in the control that changed it.
+  // The window is set outside this table, so paging resets here rather than in
+  // the control that changed it. This is React's documented "adjusting state
+  // when a prop changes" pattern, deliberately not an effect: setting during
+  // render means the first paint after a window change already shows page one,
+  // where an effect would paint the previous page count against the new set and
+  // then correct it. The guard bounds the extra pass — it reads false once the
+  // window is recorded, so the re-render settles immediately.
   const [pagedWindow, setPagedWindow] = useState(timeWindow);
   if (pagedWindow !== timeWindow) {
     setPagedWindow(timeWindow);

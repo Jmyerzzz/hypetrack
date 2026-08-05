@@ -10,7 +10,7 @@ import type {
 } from "@/lib/api-types";
 import { dateInputMs, fmtDay, fmtDuration, fmtPct, fmtUsd } from "@/lib/format";
 import { type RiskMetrics, riskInWindow } from "@/lib/risk";
-import type { TradeSummary } from "@/lib/stats";
+import type { TradeSummary, WindowSummary } from "@/lib/stats";
 import { isScoped, type TimeWindow } from "@/lib/trades";
 import { FillsTable } from "./fills-table";
 import { FundingTable } from "./funding-table";
@@ -52,6 +52,7 @@ function PerformanceStrip({
   risk,
   timeWindow,
   scoped,
+  partial,
 }: {
   stats: TradeSummary;
   markets: OutcomeMarketMap;
@@ -60,6 +61,8 @@ function PerformanceStrip({
   timeWindow: TimeWindow;
   /** False when the window covers every trade the account has made. */
   scoped: boolean;
+  /** True when the payload's trade cap keeps these from covering the window. */
+  partial: boolean;
 }) {
   const items: { label: string; node: React.ReactNode; hint?: string }[] = [
     {
@@ -223,6 +226,17 @@ function PerformanceStrip({
         <p className="mb-3 text-[11px] text-ink3">
           {count.toLocaleString()} trade{count === 1 ? "" : "s"} opened{" "}
           {windowPhrase(timeWindow)}
+          {/* The browser only holds the most recent slice of a long history,
+            so a window reaching past it describes the loaded trades alone. */}
+          {partial && (
+            <span
+              className="text-warn"
+              title="This account has more trades than are shipped to the browser. Figures here cover the loaded trades only; a window reaching past them will undercount."
+            >
+              {" "}
+              · loaded trades only
+            </span>
+          )}
         </p>
       )}
       <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 lg:grid-cols-5">
@@ -291,7 +305,7 @@ export function ActivityTabs({
 }: {
   activity: ActivityPayload | undefined;
   /** Window-scoped trade summary; null when the window covers everything. */
-  summary: TradeSummary | null;
+  summary: WindowSummary | null;
   timeWindow: TimeWindow;
   /** Portfolio series behind the strip's risk metrics, from the overview call. */
   portfolio: Record<string, PortfolioSeries> | undefined;
@@ -407,11 +421,12 @@ export function ActivityTabs({
           {tab === "trades" && (
             <>
               <PerformanceStrip
-                stats={summary ?? activity.stats}
+                stats={summary?.stats ?? activity.stats}
                 markets={activity.outcomeMarkets}
                 risk={risk}
                 timeWindow={timeWindow}
                 scoped={isScoped(timeWindow)}
+                partial={summary?.partial ?? false}
               />
               <TradesTable
                 trades={activity.trades}

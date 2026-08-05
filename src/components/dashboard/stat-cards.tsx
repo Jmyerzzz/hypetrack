@@ -3,7 +3,7 @@
 import { Pnl, Skeleton } from "@/components/ui";
 import type { ActivityPayload, OverviewPayload } from "@/lib/api-types";
 import { fmtUsd, fmtUsdSigned } from "@/lib/format";
-import type { TradeSummary } from "@/lib/stats";
+import type { WindowSummary } from "@/lib/stats";
 
 function Card({
   label,
@@ -47,7 +47,7 @@ export function StatCards({
   overview: OverviewPayload | undefined;
   activity: ActivityPayload | undefined;
   /** Window-scoped trade summary; null when the window covers everything. */
-  summary: TradeSummary | null;
+  summary: WindowSummary | null;
 }) {
   const stats = activity?.stats;
   const netDeposits = activity
@@ -126,7 +126,13 @@ export function StatCards({
         sub={
           stats ? (
             summary ? (
-              "attributed to trades in window"
+              // Only the loaded trades can be attributed to a window; say so
+              // when the payload's cap means that isn't all of them.
+              summary.partial ? (
+                "attributed to loaded trades in window"
+              ) : (
+                "attributed to trades in window"
+              )
             ) : (
               "over the loaded trade window"
             )
@@ -141,7 +147,9 @@ export function StatCards({
               Fees{" "}
               <span className="text-downt">
                 {fmtUsdSigned(
-                  -(summary ? summary.totalTradeFees : stats.totalUsdcFees),
+                  -(summary
+                    ? summary.stats.totalTradeFees
+                    : stats.totalUsdcFees),
                   { compact: true },
                 )}
               </span>
@@ -149,7 +157,9 @@ export function StatCards({
             <span className="num text-ink2">
               Fund{" "}
               <Pnl
-                value={summary ? summary.totalTradeFunding : stats.netFunding}
+                value={
+                  summary ? summary.stats.totalTradeFunding : stats.netFunding
+                }
                 compact
                 className="text-[13px] sm:text-sm"
               />

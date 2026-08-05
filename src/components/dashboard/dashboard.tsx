@@ -8,7 +8,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { RefreshButton, Skeleton } from "@/components/ui";
 import { fmtAgo, shortAddress } from "@/lib/format";
 import { rememberAddress, useActivity, useOverview } from "@/lib/hooks";
-import { summarizeTrades } from "@/lib/stats";
+import { summarizeTrades, type WindowSummary } from "@/lib/stats";
 import {
   ALL_TIME_WINDOW,
   isScoped,
@@ -99,12 +99,18 @@ export function Dashboard({ address }: { address: string }) {
   // All-time stays on the server's summary: it sees every trade, while the
   // payload's trade list is capped and can only stand in for a narrower window.
   const trades = activity.data?.trades;
-  const summary = useMemo(
+  const tradesTotal = activity.data?.tradesTotal ?? 0;
+  const summary: WindowSummary | null = useMemo(
     () =>
       trades && isScoped(timeWindow)
-        ? summarizeTrades(tradesInWindow(trades, timeWindow))
+        ? {
+            stats: summarizeTrades(tradesInWindow(trades, timeWindow)),
+            // Older trades past the payload cap were never shipped, so a
+            // window reaching back that far can only describe what loaded.
+            partial: trades.length < tradesTotal,
+          }
         : null,
-    [trades, timeWindow],
+    [trades, tradesTotal, timeWindow],
   );
 
   useEffect(() => {
