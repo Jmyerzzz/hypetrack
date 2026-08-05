@@ -6,15 +6,12 @@ import type {
   ActivityPayload,
   OrderView,
   OutcomeMarketMap,
+  PortfolioSeries,
 } from "@/lib/api-types";
 import { dateInputMs, fmtDay, fmtDuration, fmtPct, fmtUsd } from "@/lib/format";
-import { summarizeTrades, type TradeSummary } from "@/lib/stats";
-import {
-  type DateRange,
-  hasDateRange,
-  NO_DATE_RANGE,
-  tradesOpenedInRange,
-} from "@/lib/trades";
+import { type RiskMetrics, riskInWindow } from "@/lib/risk";
+import type { TradeSummary, WindowSummary } from "@/lib/stats";
+import { isScoped, type TimeWindow } from "@/lib/trades";
 import { FillsTable } from "./fills-table";
 import { FundingTable } from "./funding-table";
 import { OrdersTable } from "./orders-table";
@@ -23,26 +20,68 @@ import { TransfersTable } from "./transfers-table";
 
 type Tab = "trades" | "fills" | "funding" | "transfers" | "orders";
 
-/** "Mar 3 → Apr 2", or one-sided when only one bound is set. */
-function rangeLabel(range: DateRange): string {
-  const from = dateInputMs(range.from);
-  const to = dateInputMs(range.to);
-  if (from != null && to != null) return `${fmtDay(from)} → ${fmtDay(to)}`;
+/** How the strip's header names the window, e.g. "in the last 30 days". */
+function windowPhrase(w: TimeWindow): string {
+  if (w.preset === "day") return "in the last 24 hours";
+  if (w.preset === "week") return "in the last 7 days";
+  if (w.preset === "month") return "in the last 30 days";
+  const from = dateInputMs(w.from);
+  const to = dateInputMs(w.to);
+  if (from != null && to != null)
+    return `between ${fmtDay(from)} and ${fmtDay(to)}`;
   if (from != null) return `on or after ${fmtDay(from)}`;
   return to != null ? `on or before ${fmtDay(to)}` : "";
+}
+
+function ratio(v: number | "inf" | null): React.ReactNode {
+  if (v === "inf") return <span className="num text-upt">∞</span>;
+  if (v == null) return <span className="text-ink3">—</span>;
+  const tone = v >= 1 ? "text-upt" : v < 0 ? "text-downt" : "text-ink";
+  // The typographic minus, so a negative ratio matches the money beside it.
+  return (
+    <span className={`num ${tone}`}>
+      {v < 0 ? "−" : ""}
+      {Math.abs(v).toFixed(2)}
+    </span>
+  );
 }
 
 function PerformanceStrip({
   stats: s,
   markets,
-  range,
+  risk,
+  timeWindow,
+  scoped,
+  partial,
 }: {
   stats: TradeSummary;
   markets: OutcomeMarketMap;
-  /** Date range the stats are scoped to; null when they cover all trades. */
-  range: DateRange | null;
+  /** Equity-curve risk over the same window as `stats`. */
+  risk: RiskMetrics;
+  timeWindow: TimeWindow;
+  /** False when the window covers every trade the account has made. */
+  scoped: boolean;
+  /** True when the payload's trade cap keeps these from covering the window. */
+  partial: boolean;
 }) {
   const items: { label: string; node: React.ReactNode; hint?: string }[] = [
+    {
+      label: "Win rate",
+      hint: "Wins / (wins + losses) over closed trades; break-even trades are excluded.",
+      node:
+        s.winRate == null ? (
+          <span className="text-ink3">—</span>
+        ) : (
+          <span>
+            <span className="num text-ink">
+              {fmtPct(s.winRate, { digits: 1 })}
+            </span>
+            <span className="num ml-1 text-[11px] text-ink3">
+              {s.wins}W · {s.losses}L
+            </span>
+          </span>
+        ),
+    },
     {
       label: "Profit factor",
       node: (
@@ -148,16 +187,56 @@ function PerformanceStrip({
           </span>
         ),
     },
+    // The last three read the account's equity curve over the same window
+    // rather than the trades themselves — they're the risk half of the picture.
+    {
+      label: "Sharpe",
+      hint: "Annualized (√365) from daily PnL returns over the selected window. Needs at least 8 trading days inside it.",
+      node: ratio(risk.sharpe),
+    },
+    {
+      label: "Sortino",
+      hint: "Like Sharpe, but only down days count as risk. ∞ = no losing days in the window.",
+      node: ratio(risk.sortino),
+    },
+    {
+      label: "Max drawdown",
+      hint: "Largest peak-to-trough drop of the combined account value inside the window, as a fraction of the running peak — the same measure Hyperliquid reports.",
+      node:
+        risk.maxDrawdownUsd == null ? (
+          <span className="text-ink3">—</span>
+        ) : (
+          <span className="num text-downt">
+            −{fmtUsd(risk.maxDrawdownUsd, { compact: true })}
+            {risk.maxDrawdownPct != null && (
+              <span className="ml-1 text-[11px] text-ink3">
+                ({fmtPct(risk.maxDrawdownPct)})
+              </span>
+            )}
+          </span>
+        ),
+    },
   ];
-  const scopedCount = s.closedCount + s.openCount;
+  const count = s.closedCount + s.openCount;
   return (
     <div className="border-b border-edge px-4 py-3.5">
-      {/* Without this the strip reads as all-time even when the filter row
-        below it has narrowed the set these numbers describe. */}
-      {range && (
+      {/* Without this the strip reads as all-time even when the window above
+        has narrowed the set these numbers describe. */}
+      {scoped && (
         <p className="mb-3 text-[11px] text-ink3">
-          {scopedCount.toLocaleString()} trade{scopedCount === 1 ? "" : "s"}{" "}
-          opened {rangeLabel(range)}
+          {count.toLocaleString()} trade{count === 1 ? "" : "s"} opened{" "}
+          {windowPhrase(timeWindow)}
+          {/* The browser only holds the most recent slice of a long history,
+            so a window reaching past it describes the loaded trades alone. */}
+          {partial && (
+            <span
+              className="text-warn"
+              title="This account has more trades than are shipped to the browser. Figures here cover the loaded trades only; a window reaching past them will undercount."
+            >
+              {" "}
+              · loaded trades only
+            </span>
+          )}
         </p>
       )}
       <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 lg:grid-cols-5">
@@ -170,6 +249,12 @@ function PerformanceStrip({
           </div>
         ))}
       </div>
+      {risk.dailySamples > 0 && risk.dailySamples < 8 && (
+        <p className="mt-3 text-[11px] text-ink3">
+          Sharpe and Sortino need at least 8 trading days — this window has{" "}
+          {risk.dailySamples}.
+        </p>
+      )}
     </div>
   );
 }
@@ -207,6 +292,9 @@ function CoverageNote({ activity }: { activity: ActivityPayload }) {
 
 export function ActivityTabs({
   activity,
+  summary,
+  timeWindow,
+  portfolio,
   pending,
   error,
   onRetry,
@@ -216,6 +304,11 @@ export function ActivityTabs({
   refreshing,
 }: {
   activity: ActivityPayload | undefined;
+  /** Window-scoped trade summary; null when the window covers everything. */
+  summary: WindowSummary | null;
+  timeWindow: TimeWindow;
+  /** Portfolio series behind the strip's risk metrics, from the overview call. */
+  portfolio: Record<string, PortfolioSeries> | undefined;
   pending: boolean;
   error: Error | null;
   onRetry: () => void;
@@ -226,21 +319,10 @@ export function ActivityTabs({
   refreshing: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("trades");
-  // Owned here rather than in the table because the performance strip is
-  // scoped to the same range.
-  const [range, setRange] = useState<DateRange>(NO_DATE_RANGE);
 
-  const scoped = hasDateRange(range);
-  const rangeTrades = useMemo(
-    () =>
-      activity && scoped ? tradesOpenedInRange(activity.trades, range) : [],
-    [activity, scoped, range],
-  );
-  // All-time stats come from the server, which sees every trade; the payload's
-  // trade list is capped, so it can only stand in for a narrowed range.
-  const stats = useMemo(
-    () => (scoped ? summarizeTrades(rangeTrades) : null),
-    [scoped, rangeTrades],
+  const risk = useMemo(
+    () => riskInWindow(portfolio, timeWindow),
+    [portfolio, timeWindow],
   );
 
   const tabs: { value: Tab; label: string; count: number | null }[] = [
@@ -339,16 +421,18 @@ export function ActivityTabs({
           {tab === "trades" && (
             <>
               <PerformanceStrip
-                stats={stats ?? activity.stats}
+                stats={summary?.stats ?? activity.stats}
                 markets={activity.outcomeMarkets}
-                range={scoped ? range : null}
+                risk={risk}
+                timeWindow={timeWindow}
+                scoped={isScoped(timeWindow)}
+                partial={summary?.partial ?? false}
               />
               <TradesTable
                 trades={activity.trades}
                 tradesTotal={activity.tradesTotal}
                 markets={activity.outcomeMarkets}
-                range={range}
-                onRangeChange={setRange}
+                timeWindow={timeWindow}
               />
             </>
           )}

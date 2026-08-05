@@ -54,6 +54,17 @@ export type TradeSummary = {
   excursionSamples: number;
 };
 
+/**
+ * A {@link TradeSummary} for a selected window, carrying whether it could be
+ * complete. The payload's trade list is capped at the most recent N, so a
+ * window reaching past that cap describes only the trades actually loaded —
+ * the figures travel with that caveat rather than beside it.
+ */
+export type WindowSummary = {
+  stats: TradeSummary;
+  partial: boolean;
+};
+
 export type TradeStats = TradeSummary & {
   /** Σ |px·sz| over perp fills in the window (both opens and closes). */
   perpVolume: number;

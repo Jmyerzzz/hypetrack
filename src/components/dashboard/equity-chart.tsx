@@ -12,19 +12,18 @@ import {
   YAxis,
 } from "recharts";
 import { EmptyState, Pnl, SegmentedControl } from "@/components/ui";
-import type { PortfolioSeries } from "@/lib/api-types";
+import type { PortfolioPoint, PortfolioSeries } from "@/lib/api-types";
 import { fmtCompact, fmtTime, fmtUsd } from "@/lib/format";
 import { returnOnAvgEquity } from "@/lib/risk";
+import { type TimeWindow, windowBounds, windowLabel } from "@/lib/trades";
 
-type Range = "day" | "week" | "month" | "allTime";
 type Metric = "equity" | "pnl";
 
-const RANGE_LABELS: { value: Range; label: string }[] = [
-  { value: "day", label: "24H" },
-  { value: "week", label: "7D" },
-  { value: "month", label: "30D" },
-  { value: "allTime", label: "All" },
-];
+const DAY_MS = 86_400_000;
+
+/** Past this span a date is ambiguous without its year — axis and tooltip
+ *  share the threshold so they can't disagree about showing one. */
+const YEAR_NEEDED_MS = 180 * DAY_MS;
 
 type Point = { t: number; v: number; usd: number };
 
@@ -32,12 +31,12 @@ function ChartTooltip({
   active,
   payload,
   metric,
-  range,
+  withYear,
 }: {
   active?: boolean;
   payload?: { payload: Point }[];
   metric: Metric;
-  range: Range;
+  withYear: boolean;
 }) {
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
@@ -47,7 +46,7 @@ function ChartTooltip({
         {metric === "pnl" ? <Pnl value={point.usd} /> : fmtUsd(point.usd)}
       </p>
       <p className="mt-0.5 text-[11px] text-ink3">
-        {fmtTime(point.t, { withYear: range === "allTime" })}
+        {fmtTime(point.t, { withYear })}
       </p>
     </div>
   );
@@ -55,13 +54,37 @@ function ChartTooltip({
 
 export function EquityChart({
   portfolio,
+  timeWindow,
 }: {
   portfolio: Record<string, PortfolioSeries>;
+  timeWindow: TimeWindow;
 }) {
   const [metric, setMetric] = useState<Metric>("equity");
-  const [range, setRange] = useState<Range>("month");
 
-  const series = portfolio[range];
+  // A relative preset has a portfolio bucket sampled for exactly that span; a
+  // custom range is cut out of the all-time series, which is sampled coarsely
+  // enough that a short custom range plots only a handful of points.
+  const series = useMemo(() => {
+    const relative =
+      timeWindow.preset !== "custom" && timeWindow.preset !== "allTime";
+    const base = portfolio[relative ? timeWindow.preset : "allTime"];
+    if (!base || relative) return base;
+    const b = windowBounds(timeWindow);
+    if (b.from == null && b.to == null) return base;
+    const cut = (points: PortfolioPoint[]) =>
+      points.filter(
+        (p) =>
+          (b.from == null || p.t >= b.from) && (b.to == null || p.t < b.to),
+      );
+    return {
+      ...base,
+      accountValue: cut(base.accountValue),
+      pnl: cut(base.pnl),
+      combinedValue: cut(base.combinedValue),
+      combinedPnl: cut(base.combinedPnl),
+    };
+  }, [portfolio, timeWindow]);
+
   const isPnl = metric === "pnl";
 
   const data: Point[] = useMemo(() => {
@@ -119,15 +142,19 @@ export function EquityChart({
     };
   }, [series]);
 
+  // Ticks follow the span actually plotted, not the preset that produced it:
+  // a custom range can be any length.
+  const spanMs = data.length > 1 ? data[data.length - 1].t - data[0].t : DAY_MS;
+
   const tickFormat = (t: number): string => {
     const d = new Date(t);
-    if (range === "day")
+    if (spanMs <= 2 * DAY_MS)
       return d.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
       });
-    if (range === "allTime")
+    if (spanMs > YEAR_NEEDED_MS)
       return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
@@ -145,12 +172,6 @@ export function EquityChart({
           ]}
           value={metric}
           onChange={setMetric}
-        />
-        <SegmentedControl
-          options={RANGE_LABELS}
-          value={range}
-          onChange={setRange}
-          size="xs"
         />
       </div>
 
@@ -171,8 +192,7 @@ export function EquityChart({
           </span>
         )}
         <span className="text-xs text-ink3">
-          {RANGE_LABELS.find((r) => r.value === range)?.label} ·{" "}
-          {isPnl ? "total PnL" : "total equity"}
+          {windowLabel(timeWindow)} · {isPnl ? "total PnL" : "total equity"}
         </span>
       </div>
 
@@ -266,7 +286,12 @@ export function EquityChart({
                 />
               )}
               <Tooltip
-                content={<ChartTooltip metric={metric} range={range} />}
+                content={
+                  <ChartTooltip
+                    metric={metric}
+                    withYear={spanMs > YEAR_NEEDED_MS}
+                  />
+                }
                 cursor={{ stroke: "var(--chart-cursor)", strokeWidth: 1 }}
               />
               <Area

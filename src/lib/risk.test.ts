@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { PortfolioPoint } from "./api-types";
+import type { PortfolioPoint, PortfolioSeries } from "./api-types";
 import { computeTradeExcursion, pickCandleInterval } from "./excursions";
 import type { HlCandle } from "./hyperliquid/types";
 import {
   accountValueMaxDrawdown,
   dailyReturns,
   returnOnAvgEquity,
+  riskInWindow,
   sharpeSortino,
 } from "./risk";
-import type { Trade } from "./trades";
+import { ALL_TIME_WINDOW, type Trade } from "./trades";
 
 const DAY = 86_400_000;
 
@@ -98,6 +99,75 @@ describe("accountValueMaxDrawdown", () => {
 
   it("returns null when there is no positive equity", () => {
     expect(accountValueMaxDrawdown(series([0, 0]))).toBeNull();
+  });
+});
+
+describe("riskInWindow", () => {
+  const START = 1_700_000_000_000;
+  // 12 daily samples: equity climbs to 1200, dips to 900, recovers.
+  const equity = [
+    1000, 1050, 1100, 1200, 900, 1000, 1050, 1100, 1150, 1200, 1250, 1300,
+  ];
+  const bucket = (values: number[]): PortfolioSeries => ({
+    accountValue: series(values),
+    pnl: series(values.map((v) => v - 1000)),
+    combinedValue: series(values),
+    combinedPnl: series(values.map((v) => v - 1000)),
+    volume: 0,
+  });
+  const portfolio = {
+    allTime: bucket(equity),
+    month: bucket(equity.slice(-5)),
+  };
+  // "now" one day past the last sample, so no sample lands on the current day.
+  const now = START + equity.length * DAY;
+
+  it("reads the bucket matching a relative preset", () => {
+    const month = riskInWindow(
+      portfolio,
+      { preset: "month", from: "", to: "" },
+      now,
+    );
+    // The month bucket only climbs, so it never draws down.
+    expect(month.maxDrawdownPct).toBe(0);
+
+    const all = riskInWindow(portfolio, ALL_TIME_WINDOW, now);
+    expect(all.maxDrawdownPct).toBeCloseTo(300 / 1200);
+    expect(all.dailySamples).toBe(equity.length - 1);
+    expect(all.sharpe).not.toBeNull();
+  });
+
+  it("slices the all-time series for a custom range", () => {
+    // From the 5th sample on, so the 1200 → 900 drop is outside the window.
+    const from = new Date(START + 5 * DAY);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const risk = riskInWindow(
+      portfolio,
+      {
+        preset: "custom",
+        from: `${from.getFullYear()}-${pad(from.getMonth() + 1)}-${pad(from.getDate())}`,
+        to: "",
+      },
+      now,
+    );
+    expect(risk.maxDrawdownPct).toBe(0);
+    // Too few days left in the window for a meaningful annualized ratio.
+    expect(risk.sharpe).toBeNull();
+    expect(risk.dailySamples).toBeLessThan(8);
+  });
+
+  it("reports no drawdown at all when the window holds one sample", () => {
+    const single = riskInWindow(
+      { allTime: bucket([1000]) },
+      ALL_TIME_WINDOW,
+      now,
+    );
+    expect(single.maxDrawdownUsd).toBeNull();
+    expect(single.maxDrawdownPct).toBeNull();
+  });
+
+  it("has nothing to report without a portfolio", () => {
+    expect(riskInWindow(undefined, ALL_TIME_WINDOW, now).sharpe).toBeNull();
   });
 });
 

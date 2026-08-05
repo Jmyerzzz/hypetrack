@@ -31,7 +31,7 @@ import type {
   HlPortfolio,
   HlSpotBalance,
 } from "../hyperliquid/types";
-import { computeRiskMetrics, returnOnAvgEquity } from "../risk";
+import { returnOnAvgEquity } from "../risk";
 import { getAllMids, getBuilderDexNames, getOutcomeIndex } from "./markets";
 
 const num = (s: string | number | null | undefined): number => {
@@ -354,6 +354,5 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     portfolio: series,
     pnlSummary: summarizePnl(series),
     allTimeVolume: series.allTime?.volume ?? 0,
-    risk: computeRiskMetrics(series.month),
   };
 }
