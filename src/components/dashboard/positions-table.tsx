@@ -83,10 +83,11 @@ const DISTANCE_CAP = 9.99;
 
 /**
  * How far the mark has to travel to reach a level, on its own line beneath the
- * price and its coverage share. "from mark" is what makes it readable: three
- * percentages sit in this cell and only the wording says which is which.
- * Renders nothing when the move isn't computable — an unpriced market has no
- * honest distance to show.
+ * price and its coverage share. "from mark" is what makes it readable: up to
+ * four percentages sit in the TP/SL cell — two coverage shares and two
+ * distances — and only the wording says which is which. Renders nothing when
+ * the move isn't computable — an unpriced market has no honest distance to
+ * show.
  */
 function Distance({
   target,
@@ -121,23 +122,21 @@ function Distance({
 
 /**
  * A position's TP or SL levels, compressed to the next trigger price would
- * reach: a partial order carries how much of the position it closes, a ladder
- * folds into a `+N`, and the title spells out every rung. An em dash keeps
- * the slot (and its meaning — no exit set) when nothing rests on that side.
+ * reach: a partial order carries how much of the position it closes, the move
+ * that reaches it sits underneath, a ladder folds into a `+N`, and the title
+ * spells out every rung. An em dash keeps the slot (and its meaning — no exit
+ * set) when nothing rests on that side.
  */
 function TriggerSummary({
   triggers,
   kind,
   szi,
   markPx,
-  showDistance = false,
 }: {
   triggers: PositionTriggerView[];
   kind: "tp" | "sl";
   szi: number;
   markPx: number | null;
-  /** Print how far the mark is from the trigger — the stop's risk question. */
-  showDistance?: boolean;
 }) {
   const own = triggers.filter((t) => t.kind === kind);
   if (own.length === 0) return <span className="text-ink3">—</span>;
@@ -179,13 +178,11 @@ function TriggerSummary({
           </span>
         )}
       </span>
-      {showDistance && (
-        <Distance
-          target={next.triggerPx}
-          mark={markPx}
-          label={kind === "tp" ? "Take profit" : "Stop loss"}
-        />
-      )}
+      <Distance
+        target={next.triggerPx}
+        mark={markPx}
+        label={kind === "tp" ? "Take profit" : "Stop loss"}
+      />
     </span>
   );
 }
@@ -255,7 +252,6 @@ function PositionCard({ p }: { p: PositionView }) {
             kind="sl"
             szi={p.szi}
             markPx={p.markPx}
-            showDistance
           />
         </CardField>
       </div>
@@ -479,7 +475,6 @@ export function PositionsTable({
                       kind="sl"
                       szi={p.szi}
                       markPx={p.markPx}
-                      showDistance
                     />
                   </Td>
                   <Td className="num">{fmtUsd(p.marginUsed)}</Td>
