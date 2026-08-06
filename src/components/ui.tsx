@@ -538,9 +538,14 @@ export function FilterRow({
   onViewChange: (mode: ViewMode) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 items-center gap-2 border-b border-edge px-4 py-3 sm:flex sm:flex-wrap">
-      {children}
-      <div className="col-span-2 flex items-center justify-between gap-3 sm:ml-auto">
+    <div className="flex flex-wrap items-center gap-2 border-b border-edge px-4 py-3">
+      {/* Two controls per row on a phone, but as flex rather than a grid so an
+        odd last one stretches across instead of leaving half a row of dead
+        space. The wrapper keeps that sizing off the count row below. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 max-sm:[&>*]:min-w-[calc(50%-0.25rem)] max-sm:[&>*]:flex-1">
+        {children}
+      </div>
+      <div className="flex w-full items-center justify-between gap-3 sm:ml-auto sm:w-auto">
         <span className="text-xs text-ink3">{count}</span>
         <ViewToggle value={view} onChange={onViewChange} />
       </div>
@@ -676,20 +681,29 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
   size = "sm",
+  fullWidth = false,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
   size?: "sm" | "xs";
+  /** Stretch to the container and split it evenly — phone-width tap targets. */
+  fullWidth?: boolean;
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-edge bg-inset p-0.5">
+    <div
+      className={`rounded-lg border border-edge bg-inset p-0.5 ${
+        fullWidth ? "flex w-full sm:inline-flex sm:w-auto" : "inline-flex"
+      }`}
+    >
       {options.map((opt) => (
         <button
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
           className={`rounded-md font-medium transition-colors ${
+            fullWidth ? "flex-1 sm:flex-none" : ""
+          } ${
             size === "xs"
               ? "px-2 py-1 text-[11px] max-sm:px-2.5 max-sm:py-1.5"
               : "px-2.5 py-1 text-xs max-sm:px-3 max-sm:py-2"

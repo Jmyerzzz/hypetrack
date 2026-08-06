@@ -74,11 +74,15 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
           className="py-1.5"
           title="USDC committed as position margin (isolated margin includes that position's unrealized PnL), as a share of your total tradeable balance — perp equity plus spot USDC, which the unified account can post as collateral directly. The remainder is free collateral you can open new positions with or withdraw."
         >
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-[13px] text-ink2">Margin used</span>
-            <span className="num text-[13px] text-ink">
-              {fmtUsd(overview.marginUsed)}
-              <span className="ml-1.5 text-ink3">
+          {/* The share is a whole clause, so it wraps under the dollar figure
+            rather than forcing the label to break in two on a phone. */}
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="shrink-0 text-[13px] whitespace-nowrap text-ink2">
+              Margin used
+            </span>
+            <span className="num flex flex-wrap justify-end gap-x-1.5 text-right text-[13px] text-ink">
+              <span>{fmtUsd(overview.marginUsed)}</span>
+              <span className="text-ink3">
                 ({(marginRatio * 100).toFixed(1)}% of account equity)
               </span>
             </span>

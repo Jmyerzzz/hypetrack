@@ -171,9 +171,12 @@ export function StatCards({
       </Card>
 
       {/* Net leads because it's the figure that reconciles against PnL:
-          total equity − net deposits is what the account actually earned. */}
+          total equity − net deposits is what the account actually earned.
+          Spans the phone's two columns: it's the odd card out there, and half
+          a row of empty grid beside it reads as a mistake. */}
       <Card
         label="Deposits · withdrawals"
+        className="col-span-2 sm:col-span-1"
         sub={
           activity ? (
             <span className="num flex flex-col gap-0.5">
