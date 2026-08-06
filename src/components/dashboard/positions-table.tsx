@@ -82,10 +82,11 @@ const SORT_OPTIONS: {
 const DISTANCE_CAP = 9.99;
 
 /**
- * How far the mark has to travel to reach a level, parenthesised so it can't
- * be read as the bare coverage percentage a partial trigger prints beside its
- * price. Renders nothing when the move isn't computable — an unpriced market
- * has no honest distance to show.
+ * How far the mark has to travel to reach a level, on its own line beneath the
+ * price and its coverage share. "from mark" is what makes it readable: three
+ * percentages sit in this cell and only the wording says which is which.
+ * Renders nothing when the move isn't computable — an unpriced market has no
+ * honest distance to show.
  */
 function Distance({
   target,
@@ -103,7 +104,7 @@ function Distance({
   const side = move < 0 ? "below" : "above";
   return (
     <span
-      className="num text-[11px] text-ink3"
+      className="num block text-[11px] text-ink3"
       title={
         far
           ? `${label} is more than 999% ${side} the mark price — effectively out of reach`
@@ -111,8 +112,9 @@ function Distance({
       }
     >
       {far
-        ? `(${move < 0 ? "<−" : ">+"}999%)`
-        : `(${fmtPct(move, { signed: true, digits: 1 })})`}
+        ? `${move < 0 ? "<−" : ">+"}999%`
+        : fmtPct(move, { signed: true, digits: 1 })}{" "}
+      from mark
     </span>
   );
 }
@@ -153,30 +155,36 @@ function TriggerSummary({
     )
     .join("\n");
   return (
-    // Flex so the parts can wrap — JSX drops the whitespace between them, and
-    // without a break opportunity they run past a narrow column. Inline-level
-    // so the table can still sit TP and SL either side of a "/" and the card
-    // can right-align the whole thing.
+    // Inline-block, so the table can still sit TP and SL either side of a "/"
+    // while each stacks its own distance line, and so a right-aligned card
+    // field carries its alignment into both lines. Top-aligned because an
+    // inline-block baselines on its *last* line: the "/" would otherwise sit
+    // against the distance rather than the price it separates.
     <span
-      className={`inline-flex flex-wrap items-baseline gap-x-1 ${
+      className={`inline-block align-top ${
         kind === "tp" ? "text-upt" : "text-downt"
       }`}
       title={title}
     >
-      <span className="num">{fmtPrice(next.triggerPx)}</span>
+      {/* Flex so the price and its coverage share can wrap: JSX drops the
+        whitespace between them, and without a break opportunity they run past
+        a narrow column. */}
+      <span className="inline-flex flex-wrap items-baseline gap-x-1">
+        <span className="num">{fmtPrice(next.triggerPx)}</span>
+        {(coverage != null || rest.length > 0) && (
+          <span className="num text-[11px] opacity-75">
+            {coverage != null && fmtPct(coverage, { digits: 0 })}
+            {coverage != null && rest.length > 0 && " "}
+            {rest.length > 0 && `+${rest.length}`}
+          </span>
+        )}
+      </span>
       {showDistance && (
         <Distance
           target={next.triggerPx}
           mark={markPx}
           label={kind === "tp" ? "Take profit" : "Stop loss"}
         />
-      )}
-      {(coverage != null || rest.length > 0) && (
-        <span className="num text-[11px] opacity-75">
-          {coverage != null && fmtPct(coverage, { digits: 0 })}
-          {coverage != null && rest.length > 0 && " "}
-          {rest.length > 0 && `+${rest.length}`}
-        </span>
       )}
     </span>
   );
@@ -221,14 +229,14 @@ function PositionCard({ p }: { p: PositionView }) {
           <span className="num">{fmtPrice(p.markPx)}</span>
         </CardField>
         <CardField label="Liq. price">
-          <span className="inline-flex flex-wrap items-baseline gap-x-1">
-            <span className="num text-warn">{fmtPrice(p.liquidationPx)}</span>
-            <Distance
-              target={p.liquidationPx}
-              mark={p.markPx}
-              label="Liquidation"
-            />
+          <span className="num block text-warn">
+            {fmtPrice(p.liquidationPx)}
           </span>
+          <Distance
+            target={p.liquidationPx}
+            mark={p.markPx}
+            label="Liquidation"
+          />
         </CardField>
         <CardField label="Funding" align="right">
           <Pnl value={p.fundingSinceOpen} className="text-[13px]" />
@@ -451,14 +459,12 @@ export function PositionsTable({
                   <Td className="num">{fmtPrice(p.entryPx)}</Td>
                   <Td className="num">{fmtPrice(p.markPx)}</Td>
                   <Td className="num text-warn">
-                    <span className="inline-flex flex-wrap items-baseline gap-x-1">
-                      {fmtPrice(p.liquidationPx)}
-                      <Distance
-                        target={p.liquidationPx}
-                        mark={p.markPx}
-                        label="Liquidation"
-                      />
-                    </span>
+                    <span className="block">{fmtPrice(p.liquidationPx)}</span>
+                    <Distance
+                      target={p.liquidationPx}
+                      mark={p.markPx}
+                      label="Liquidation"
+                    />
                   </Td>
                   <Td>
                     <TriggerSummary
