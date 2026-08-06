@@ -1,6 +1,6 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
+import { type Dispatch, type SetStateAction, useState } from "react";
 import { FilterDateRange, SegmentedControl } from "@/components/ui";
 import {
   type TimeWindow,
@@ -21,8 +21,15 @@ export function WindowPicker({
   timeWindow: TimeWindow;
   onChange: Dispatch<SetStateAction<TimeWindow>>;
 }) {
-  const setPreset = (preset: WindowPreset) =>
+  // The date pair is the rare choice and costs a whole row on a phone, so
+  // there it hides behind a toggle. Desktop has the width to show it outright.
+  const [showDates, setShowDates] = useState(false);
+  const dated = timeWindow.preset === "custom";
+
+  const setPreset = (preset: WindowPreset) => {
+    setShowDates(false);
     onChange({ preset, from: "", to: "" });
+  };
 
   // Typing a date is itself the choice of a custom window, so the presets
   // deselect rather than making the user pick a "custom" mode first. Updated
@@ -38,20 +45,43 @@ export function WindowPicker({
     });
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <SegmentedControl
-        options={WINDOW_PRESETS}
-        value={timeWindow.preset}
-        onChange={setPreset}
-        size="xs"
-      />
-      <FilterDateRange
-        from={timeWindow.from}
-        to={timeWindow.to}
-        onFromChange={(from) => setDates({ from })}
-        onToChange={(to) => setDates({ to })}
-        label="Trades opened"
-      />
+    <div className="flex w-full flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
+        <SegmentedControl
+          options={WINDOW_PRESETS}
+          value={timeWindow.preset}
+          onChange={setPreset}
+          size="xs"
+          fullWidth
+        />
+        <button
+          type="button"
+          onClick={() => setShowDates((open) => !open)}
+          aria-expanded={showDates || dated}
+          className={`shrink-0 rounded-lg border border-edge px-2.5 py-1.5 text-[11px] font-medium transition-colors sm:hidden ${
+            dated ? "bg-panel2 text-ink" : "text-ink3 hover:text-ink2"
+          }`}
+        >
+          Dates
+        </button>
+      </div>
+      {/* Always in the layout from sm up; on a phone only once asked for, or
+        when a date is already set and hiding it would strand the control.
+        Full width there so the two date fields aren't squeezed into whatever
+        the presets leave behind. */}
+      <div
+        className={`w-full min-w-0 sm:w-auto sm:flex-none ${
+          showDates || dated ? "block" : "hidden sm:block"
+        }`}
+      >
+        <FilterDateRange
+          from={timeWindow.from}
+          to={timeWindow.to}
+          onFromChange={(from) => setDates({ from })}
+          onToChange={(to) => setDates({ to })}
+          label="Trades opened"
+        />
+      </div>
     </div>
   );
 }

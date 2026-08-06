@@ -33,6 +33,18 @@ function windowPhrase(w: TimeWindow): string {
   return to != null ? `on or before ${fmtDay(to)}` : "";
 }
 
+/**
+ * Wrapper for a value made of more than one part. JSX drops the whitespace
+ * between adjacent elements, so inline parts have no break opportunity and a
+ * long value runs straight over the next column at phone widths. Flex supplies
+ * both the wrap and the spacing the missing whitespace used to imply.
+ */
+function Parts({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="flex flex-wrap items-baseline gap-x-1">{children}</span>
+  );
+}
+
 function ratio(v: number | "inf" | null): React.ReactNode {
   if (v === "inf") return <span className="num text-upt">∞</span>;
   if (v == null) return <span className="text-ink3">—</span>;
@@ -72,14 +84,14 @@ function PerformanceStrip({
         s.winRate == null ? (
           <span className="text-ink3">—</span>
         ) : (
-          <span>
+          <Parts>
             <span className="num text-ink">
               {fmtPct(s.winRate, { digits: 1 })}
             </span>
-            <span className="num ml-1 text-[11px] text-ink3">
+            <span className="num text-[11px] text-ink3">
               {s.wins}W · {s.losses}L
             </span>
-          </span>
+          </Parts>
         ),
     },
     {
@@ -124,12 +136,15 @@ function PerformanceStrip({
     {
       label: "Largest win",
       node: s.largestWin ? (
-        <span>
+        <Parts>
           <Pnl value={s.largestWin.netPnl} compact className="text-[13px]" />
-          <span className="ml-1 text-[11px] text-ink3">
+          <span
+            className="max-w-full truncate text-[11px] text-ink3"
+            title={marketName(s.largestWin.coin, markets)}
+          >
             {marketName(s.largestWin.coin, markets)}
           </span>
-        </span>
+        </Parts>
       ) : (
         "—"
       ),
@@ -137,12 +152,15 @@ function PerformanceStrip({
     {
       label: "Largest loss",
       node: s.largestLoss ? (
-        <span>
+        <Parts>
           <Pnl value={s.largestLoss.netPnl} compact className="text-[13px]" />
-          <span className="ml-1 text-[11px] text-ink3">
+          <span
+            className="max-w-full truncate text-[11px] text-ink3"
+            title={marketName(s.largestLoss.coin, markets)}
+          >
             {marketName(s.largestLoss.coin, markets)}
           </span>
-        </span>
+        </Parts>
       ) : (
         "—"
       ),
@@ -156,11 +174,11 @@ function PerformanceStrip({
     {
       label: "Long / short PnL",
       node: (
-        <span className="num text-[13px]">
+        <Parts>
           <Pnl value={s.longs.netPnl} compact className="text-[13px]" />
-          <span className="mx-1 text-ink3">/</span>
+          <span className="text-ink3">/</span>
           <Pnl value={s.shorts.netPnl} compact className="text-[13px]" />
-        </span>
+        </Parts>
       ),
     },
     {
@@ -206,14 +224,16 @@ function PerformanceStrip({
         risk.maxDrawdownUsd == null ? (
           <span className="text-ink3">—</span>
         ) : (
-          <span className="num text-downt">
-            −{fmtUsd(risk.maxDrawdownUsd, { compact: true })}
+          <Parts>
+            <span className="num text-downt">
+              −{fmtUsd(risk.maxDrawdownUsd, { compact: true })}
+            </span>
             {risk.maxDrawdownPct != null && (
-              <span className="ml-1 text-[11px] text-ink3">
+              <span className="num text-[11px] text-ink3">
                 ({fmtPct(risk.maxDrawdownPct)})
               </span>
             )}
-          </span>
+          </Parts>
         ),
     },
   ];
@@ -239,10 +259,12 @@ function PerformanceStrip({
           )}
         </p>
       )}
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 sm:gap-x-6 lg:grid-cols-5">
         {items.map((item) => (
-          <div key={item.label} title={item.hint}>
-            <p className="text-[10px] font-medium tracking-wide text-ink3 uppercase">
+          // min-w-0: a grid track is min-content-sized by default, so without
+          // it a wide value stretches its column instead of wrapping inside it.
+          <div key={item.label} className="min-w-0" title={item.hint}>
+            <p className="truncate text-[10px] font-medium tracking-wide text-ink3 uppercase">
               {item.label}
             </p>
             <p className="mt-0.5 text-[13px]">{item.node}</p>
