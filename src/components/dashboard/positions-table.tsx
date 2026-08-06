@@ -18,6 +18,7 @@ import {
 import type { PositionTriggerView, PositionView } from "@/lib/api-types";
 import { fmtPct, fmtPrice, fmtSize, fmtUsd } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
+import { distanceFromMark } from "@/lib/positions";
 
 type PnlFilter = "all" | "profit" | "loss";
 type DirFilter = "all" | "long" | "short";
@@ -74,6 +75,49 @@ const SORT_OPTIONS: {
 ];
 
 /**
+ * Past this the level isn't a risk to read against, it's parked out of reach —
+ * a cross-margin short's liquidation sits thousands of percent away, and the
+ * full figure is noise where a "far enough not to matter" would do.
+ */
+const DISTANCE_CAP = 9.99;
+
+/**
+ * How far the mark has to travel to reach a level, parenthesised so it can't
+ * be read as the bare coverage percentage a partial trigger prints beside its
+ * price. Renders nothing when the move isn't computable — an unpriced market
+ * has no honest distance to show.
+ */
+function Distance({
+  target,
+  mark,
+  label,
+}: {
+  target: number | null;
+  mark: number | null;
+  /** Names the level in the tooltip, e.g. "Liquidation". */
+  label: string;
+}) {
+  const move = distanceFromMark(target, mark);
+  if (move == null) return null;
+  const far = Math.abs(move) > DISTANCE_CAP;
+  const side = move < 0 ? "below" : "above";
+  return (
+    <span
+      className="num text-[11px] text-ink3"
+      title={
+        far
+          ? `${label} is more than 999% ${side} the mark price — effectively out of reach`
+          : `${label} is ${fmtPct(Math.abs(move), { digits: 2 })} ${side} the mark price`
+      }
+    >
+      {far
+        ? `(${move < 0 ? "<−" : ">+"}999%)`
+        : `(${fmtPct(move, { signed: true, digits: 1 })})`}
+    </span>
+  );
+}
+
+/**
  * A position's TP or SL levels, compressed to the next trigger price would
  * reach: a partial order carries how much of the position it closes, a ladder
  * folds into a `+N`, and the title spells out every rung. An em dash keeps
@@ -83,10 +127,15 @@ function TriggerSummary({
   triggers,
   kind,
   szi,
+  markPx,
+  showDistance = false,
 }: {
   triggers: PositionTriggerView[];
   kind: "tp" | "sl";
   szi: number;
+  markPx: number | null;
+  /** Print how far the mark is from the trigger — the stop's risk question. */
+  showDistance?: boolean;
 }) {
   const own = triggers.filter((t) => t.kind === kind);
   if (own.length === 0) return <span className="text-ink3">—</span>;
@@ -104,13 +153,26 @@ function TriggerSummary({
     )
     .join("\n");
   return (
+    // Flex so the parts can wrap — JSX drops the whitespace between them, and
+    // without a break opportunity they run past a narrow column. Inline-level
+    // so the table can still sit TP and SL either side of a "/" and the card
+    // can right-align the whole thing.
     <span
-      className={`num ${kind === "tp" ? "text-upt" : "text-downt"}`}
+      className={`inline-flex flex-wrap items-baseline gap-x-1 ${
+        kind === "tp" ? "text-upt" : "text-downt"
+      }`}
       title={title}
     >
-      {fmtPrice(next.triggerPx)}
+      <span className="num">{fmtPrice(next.triggerPx)}</span>
+      {showDistance && (
+        <Distance
+          target={next.triggerPx}
+          mark={markPx}
+          label={kind === "tp" ? "Take profit" : "Stop loss"}
+        />
+      )}
       {(coverage != null || rest.length > 0) && (
-        <span className="ml-1 text-[11px] opacity-75">
+        <span className="num text-[11px] opacity-75">
           {coverage != null && fmtPct(coverage, { digits: 0 })}
           {coverage != null && rest.length > 0 && " "}
           {rest.length > 0 && `+${rest.length}`}
@@ -159,16 +221,34 @@ function PositionCard({ p }: { p: PositionView }) {
           <span className="num">{fmtPrice(p.markPx)}</span>
         </CardField>
         <CardField label="Liq. price">
-          <span className="num text-warn">{fmtPrice(p.liquidationPx)}</span>
+          <span className="inline-flex flex-wrap items-baseline gap-x-1">
+            <span className="num text-warn">{fmtPrice(p.liquidationPx)}</span>
+            <Distance
+              target={p.liquidationPx}
+              mark={p.markPx}
+              label="Liquidation"
+            />
+          </span>
         </CardField>
         <CardField label="Funding" align="right">
           <Pnl value={p.fundingSinceOpen} className="text-[13px]" />
         </CardField>
         <CardField label="Take profit">
-          <TriggerSummary triggers={p.triggers} kind="tp" szi={p.szi} />
+          <TriggerSummary
+            triggers={p.triggers}
+            kind="tp"
+            szi={p.szi}
+            markPx={p.markPx}
+          />
         </CardField>
         <CardField label="Stop loss" align="right">
-          <TriggerSummary triggers={p.triggers} kind="sl" szi={p.szi} />
+          <TriggerSummary
+            triggers={p.triggers}
+            kind="sl"
+            szi={p.szi}
+            markPx={p.markPx}
+            showDistance
+          />
         </CardField>
       </div>
     </DataCard>
@@ -370,18 +450,30 @@ export function PositionsTable({
                   </Td>
                   <Td className="num">{fmtPrice(p.entryPx)}</Td>
                   <Td className="num">{fmtPrice(p.markPx)}</Td>
-                  <Td className="num text-warn">{fmtPrice(p.liquidationPx)}</Td>
+                  <Td className="num text-warn">
+                    <span className="inline-flex flex-wrap items-baseline gap-x-1">
+                      {fmtPrice(p.liquidationPx)}
+                      <Distance
+                        target={p.liquidationPx}
+                        mark={p.markPx}
+                        label="Liquidation"
+                      />
+                    </span>
+                  </Td>
                   <Td>
                     <TriggerSummary
                       triggers={p.triggers}
                       kind="tp"
                       szi={p.szi}
+                      markPx={p.markPx}
                     />
                     <span className="text-ink3"> / </span>
                     <TriggerSummary
                       triggers={p.triggers}
                       kind="sl"
                       szi={p.szi}
+                      markPx={p.markPx}
+                      showDistance
                     />
                   </Td>
                   <Td className="num">{fmtUsd(p.marginUsed)}</Td>
