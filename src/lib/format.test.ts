@@ -1,5 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { dateInputMs, fmtNetPnlBreakdown } from "./format";
+import { dateInputMs, fmtNetPnlBreakdown, splitCents } from "./format";
+
+describe("splitCents", () => {
+  it("splits the cents off a dollar amount", () => {
+    expect(splitCents("$4,506.32")).toEqual(["$4,506", ".32", ""]);
+  });
+
+  it("keeps a signed amount's sign with the dollars", () => {
+    expect(splitCents("−$1,234.50")).toEqual(["−$1,234", ".50", ""]);
+  });
+
+  it("leaves a compacted amount alone — those digits aren't cents", () => {
+    expect(splitCents("$2.66B")).toEqual(["$2.66B"]);
+    expect(splitCents("In +$20.72M · Out −$12.17M")).toEqual([
+      "In +$20.72M · Out −$12.17M",
+    ]);
+  });
+
+  it("splits every amount in a breakdown line", () => {
+    expect(splitCents(fmtNetPnlBreakdown(714.71, 9.0, 7.48))).toEqual([
+      "+$714",
+      ".71",
+      " − $9",
+      ".00",
+      " + $7",
+      ".48",
+      "",
+    ]);
+  });
+
+  it("leaves text without dollar cents in one piece", () => {
+    // A price, a percentage and a whole-dollar figure all read at one size.
+    expect(splitCents("73,421.5")).toEqual(["73,421.5"]);
+    expect(splitCents("12.34%")).toEqual(["12.34%"]);
+    expect(splitCents("$123,457")).toEqual(["$123,457"]);
+  });
+});
 
 describe("fmtNetPnlBreakdown", () => {
   it("subtracts positive fees and adds received funding", () => {

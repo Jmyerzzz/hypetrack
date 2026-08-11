@@ -12,6 +12,7 @@ import {
   FilterSelect,
   Pnl,
   RefreshButton,
+  smallCents,
   Td,
   Th,
 } from "@/components/ui";
@@ -213,11 +214,11 @@ function PositionCard({ p }: { p: PositionView }) {
         <CardField label="Size">
           <span className="num">{fmtSize(Math.abs(p.szi))}</span>
           <span className="num ml-1.5 text-[11px] text-ink3">
-            {fmtUsd(p.positionValue, { compact: true })}
+            {smallCents(fmtUsd(p.positionValue, { compact: true }))}
           </span>
         </CardField>
         <CardField label="Margin" align="right">
-          <span className="num">{fmtUsd(p.marginUsed)}</span>
+          <span className="num">{smallCents(fmtUsd(p.marginUsed))}</span>
         </CardField>
         <CardField label="Entry">
           <span className="num">{fmtPrice(p.entryPx)}</span>
@@ -331,8 +332,8 @@ export function PositionsTable({
             </span>
           </h2>
           <p className="num text-xs text-ink2">
-            {fmtUsd(totalNotional, { compact: true })} notional · uPnL{" "}
-            <Pnl value={totalUpnl} className="text-xs" />
+            {smallCents(fmtUsd(totalNotional, { compact: true }))} notional ·
+            uPnL <Pnl value={totalUpnl} className="text-xs" />
           </p>
         </div>
         <div className="flex shrink-0 items-center self-stretch border-l border-edge pl-1.5">
@@ -449,7 +450,7 @@ export function PositionsTable({
                       {fmtSize(Math.abs(p.szi))}
                     </span>
                     <span className="num block text-[11px] text-ink3">
-                      {fmtUsd(p.positionValue, { compact: true })}
+                      {smallCents(fmtUsd(p.positionValue, { compact: true }))}
                     </span>
                   </Td>
                   <Td className="num">{fmtPrice(p.entryPx)}</Td>
@@ -477,7 +478,7 @@ export function PositionsTable({
                       markPx={p.markPx}
                     />
                   </Td>
-                  <Td className="num">{fmtUsd(p.marginUsed)}</Td>
+                  <Td className="num">{smallCents(fmtUsd(p.marginUsed))}</Td>
                   <Td>
                     <Pnl value={p.fundingSinceOpen} className="text-[13px]" />
                   </Td>

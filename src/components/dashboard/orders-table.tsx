@@ -6,6 +6,7 @@ import {
   DataCard,
   EmptyState,
   MarketLabel,
+  smallCents,
   Td,
   Th,
   ViewToggle,
@@ -75,7 +76,9 @@ function OrderCard({
         </CardField>
         <CardField label="Value" align="right">
           <span className="num text-ink2">
-            {o.limitPx > 0 ? fmtUsd(o.sz * o.limitPx, { compact: true }) : "—"}
+            {o.limitPx > 0
+              ? smallCents(fmtUsd(o.sz * o.limitPx, { compact: true }))
+              : "—"}
           </span>
         </CardField>
         {/* Order type can carry several qualifier chips — give it a full row. */}
@@ -156,7 +159,7 @@ export function OrdersTable({
                   </Td>
                   <Td className="num text-ink2">
                     {o.limitPx > 0
-                      ? fmtUsd(o.sz * o.limitPx, { compact: true })
+                      ? smallCents(fmtUsd(o.sz * o.limitPx, { compact: true }))
                       : "—"}
                   </Td>
                   <Td align="left" className="num text-ink2">

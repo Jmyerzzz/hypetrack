@@ -1,6 +1,6 @@
 "use client";
 
-import { Pnl, Skeleton } from "@/components/ui";
+import { Pnl, Skeleton, smallCents } from "@/components/ui";
 import type { ActivityPayload, OverviewPayload } from "@/lib/api-types";
 import { fmtUsd, fmtUsdSigned } from "@/lib/format";
 import type { WindowSummary } from "@/lib/stats";
@@ -64,13 +64,14 @@ export function StatCards({
         sub={
           overview ? (
             <span className="num">
-              Perp {fmtUsd(overview.perpEquity, { compact: true })} · Spot{" "}
-              {fmtUsd(overview.spotValue, { compact: true })}
+              Perp {smallCents(fmtUsd(overview.perpEquity, { compact: true }))}{" "}
+              · Spot {smallCents(fmtUsd(overview.spotValue, { compact: true }))}
               {/* Listed only when held, so the three parts always add up. */}
               {overview.outcomeValue > 0 && (
                 <>
                   {" "}
-                  · Outcome {fmtUsd(overview.outcomeValue, { compact: true })}
+                  · Outcome{" "}
+                  {smallCents(fmtUsd(overview.outcomeValue, { compact: true }))}
                 </>
               )}{" "}
               · Unrealized{" "}
@@ -87,7 +88,7 @@ export function StatCards({
       >
         {overview ? (
           <span className="text-[28px] tracking-tight">
-            {fmtUsd(overview.totalEquity)}
+            {smallCents(fmtUsd(overview.totalEquity))}
           </span>
         ) : (
           <Skeleton className="h-8 w-40" />
@@ -103,9 +104,15 @@ export function StatCards({
           overview ? (
             <span className="num">
               7D:{" "}
-              {fmtUsd(overview.portfolio.week?.volume ?? 0, { compact: true })}{" "}
+              {smallCents(
+                fmtUsd(overview.portfolio.week?.volume ?? 0, { compact: true }),
+              )}{" "}
               · 30D:{" "}
-              {fmtUsd(overview.portfolio.month?.volume ?? 0, { compact: true })}
+              {smallCents(
+                fmtUsd(overview.portfolio.month?.volume ?? 0, {
+                  compact: true,
+                }),
+              )}
             </span>
           ) : (
             <Skeleton className="h-4 w-24" />
@@ -114,7 +121,7 @@ export function StatCards({
       >
         {overview ? (
           <span className="num">
-            {fmtUsd(overview.allTimeVolume, { compact: true })}
+            {smallCents(fmtUsd(overview.allTimeVolume, { compact: true }))}
           </span>
         ) : (
           <Skeleton className="h-7 w-24" />
@@ -146,11 +153,13 @@ export function StatCards({
             <span className="num text-ink2">
               Fees{" "}
               <span className="text-downt">
-                {fmtUsdSigned(
-                  -(summary
-                    ? summary.stats.totalTradeFees
-                    : stats.totalUsdcFees),
-                  { compact: true },
+                {smallCents(
+                  fmtUsdSigned(
+                    -(summary
+                      ? summary.stats.totalTradeFees
+                      : stats.totalUsdcFees),
+                    { compact: true },
+                  ),
                 )}
               </span>
             </span>
@@ -183,13 +192,17 @@ export function StatCards({
               <span className="whitespace-nowrap">
                 In{" "}
                 <span className="text-upt">
-                  {fmtUsdSigned(activity.totalDeposited, { compact: true })}
+                  {smallCents(
+                    fmtUsdSigned(activity.totalDeposited, { compact: true }),
+                  )}
                 </span>
               </span>
               <span className="whitespace-nowrap">
                 Out{" "}
                 <span className="text-downt">
-                  {fmtUsdSigned(-activity.totalWithdrawn, { compact: true })}
+                  {smallCents(
+                    fmtUsdSigned(-activity.totalWithdrawn, { compact: true }),
+                  )}
                 </span>
               </span>
               {!activity.coverage.ledgerComplete && <span>partial ledger</span>}
@@ -201,7 +214,7 @@ export function StatCards({
       >
         {activity ? (
           <span className="num whitespace-nowrap" title={FLOW_HINT}>
-            {fmtUsdSigned(netDeposits ?? 0, { compact: true })}
+            {smallCents(fmtUsdSigned(netDeposits ?? 0, { compact: true }))}
           </span>
         ) : (
           <Skeleton className="h-7 w-24" />

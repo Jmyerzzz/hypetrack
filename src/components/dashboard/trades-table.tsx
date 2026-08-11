@@ -14,6 +14,7 @@ import {
   Pnl,
   ResultBadge,
   SideBadge,
+  smallCents,
   Td,
   Th,
 } from "@/components/ui";
@@ -102,9 +103,11 @@ function TradeDetail({
               : "Net = gross − fees + funding"}
           </span>
           <span className="num block text-right text-ink sm:text-left">
-            {trade.kind === "outcome"
-              ? `${fmtUsdSigned(trade.grossPnl)} ${trade.fees >= 0 ? "−" : "+"} ${fmtUsd(Math.abs(trade.fees))}`
-              : fmtNetPnlBreakdown(trade.grossPnl, trade.fees, trade.funding)}
+            {smallCents(
+              trade.kind === "outcome"
+                ? `${fmtUsdSigned(trade.grossPnl)} ${trade.fees >= 0 ? "−" : "+"} ${fmtUsd(Math.abs(trade.fees))}`
+                : fmtNetPnlBreakdown(trade.grossPnl, trade.fees, trade.funding),
+            )}
           </span>
         </p>
         <p
@@ -116,7 +119,7 @@ function TradeDetail({
             {trade.excursion ? (
               <span className="text-upt">
                 +{fmtPct(trade.excursion.mfePct, { digits: 2 })} ·{" "}
-                {fmtUsd(trade.excursion.mfeUsd, { compact: true })}
+                {smallCents(fmtUsd(trade.excursion.mfeUsd, { compact: true }))}
               </span>
             ) : (
               <span className="text-ink3">—</span>
@@ -132,7 +135,7 @@ function TradeDetail({
             {trade.excursion ? (
               <span className="text-downt">
                 −{fmtPct(trade.excursion.maePct, { digits: 2 })} ·{" "}
-                {fmtUsd(trade.excursion.maeUsd, { compact: true })}
+                {smallCents(fmtUsd(trade.excursion.maeUsd, { compact: true }))}
               </span>
             ) : (
               <span className="text-ink3">—</span>
@@ -195,7 +198,7 @@ function TradeDetail({
                 </Td>
                 <Td className="num">{fmtPrice(s.px)}</Td>
                 <Td className="num">{fmtSize(s.sz)}</Td>
-                <Td className="num text-ink2">{fmtUsd(s.fee)}</Td>
+                <Td className="num text-ink2">{smallCents(fmtUsd(s.fee))}</Td>
                 <Td>
                   {s.action === "close" ? (
                     <Pnl value={s.closedPnl} className="text-[13px]" />
@@ -309,7 +312,9 @@ function TradeCard({
           <span className="num">{fmtSize(trade.maxSize)}</span>
           {trade.avgEntryPx != null && (
             <span className="num ml-1.5 text-[11px] text-ink3">
-              {fmtUsd(trade.maxSize * trade.avgEntryPx, { compact: true })}
+              {smallCents(
+                fmtUsd(trade.maxSize * trade.avgEntryPx, { compact: true }),
+              )}
             </span>
           )}
         </CardField>
@@ -319,7 +324,9 @@ function TradeCard({
           </span>
         </CardField>
         <CardField label="Fees">
-          <span className="num text-ink2">{fmtUsd(trade.fees)}</span>
+          <span className="num text-ink2">
+            {smallCents(fmtUsd(trade.fees))}
+          </span>
         </CardField>
         <CardField label="Funding" align="right">
           {trade.kind === "outcome" ? (
@@ -649,13 +656,17 @@ export function TradesTable({
                         <span className="num block">{fmtSize(t.maxSize)}</span>
                         {t.avgEntryPx != null && (
                           <span className="num block text-[11px] text-ink3">
-                            {fmtUsd(t.maxSize * t.avgEntryPx, {
-                              compact: true,
-                            })}
+                            {smallCents(
+                              fmtUsd(t.maxSize * t.avgEntryPx, {
+                                compact: true,
+                              }),
+                            )}
                           </span>
                         )}
                       </Td>
-                      <Td className="num text-ink2">{fmtUsd(t.fees)}</Td>
+                      <Td className="num text-ink2">
+                        {smallCents(fmtUsd(t.fees))}
+                      </Td>
                       <Td>
                         {t.kind === "outcome" ? (
                           <span
