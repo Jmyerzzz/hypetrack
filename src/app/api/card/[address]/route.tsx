@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { cache } from "@/lib/cache";
-import { findCardTrade, sanitizeLeverage } from "@/lib/card";
+import { findCardTrade } from "@/lib/card";
 import { isValidAddress, normalizeAddress } from "@/lib/format";
-import { fetchActiveAssetData } from "@/lib/hyperliquid/client";
 import { getActivity } from "@/lib/server/activity";
 import { renderTradeCard } from "@/lib/server/card-image";
+import { currentLeverage } from "@/lib/server/leverage";
 
 export const dynamic = "force-dynamic";
 
@@ -15,27 +14,6 @@ export const dynamic = "force-dynamic";
  * coin (Hyperliquid's own card convention), fetched live via
  * `activeAssetData` because historical fills never recorded one.
  */
-
-/** Leverage settings move rarely; a short TTL just absorbs bursts of shares. */
-const LEVERAGE_TTL_MS = 60_000;
-
-async function currentLeverage(
-  address: string,
-  coin: string,
-): Promise<number | null> {
-  try {
-    const data = await cache.getOrLoad(
-      `activeAsset:${address}:${coin}`,
-      LEVERAGE_TTL_MS,
-      () => fetchActiveAssetData(address, coin),
-    );
-    return sanitizeLeverage(data.leverage?.value);
-  } catch {
-    // Delisted market or transient failure: the card renders unleveraged
-    // rather than not at all.
-    return null;
-  }
-}
 
 export async function GET(
   req: Request,
@@ -70,6 +48,10 @@ export async function GET(
     );
   }
 
-  const leverage = await currentLeverage(address, trade.coin);
+  // The activity payload usually resolved this coin already; the live lookup
+  // covers coins past its cap (both share one cache, so nothing double-fetches).
+  const leverage =
+    activity.leverageByCoin[trade.coin] ??
+    (await currentLeverage(address, trade.coin));
   return renderTradeCard({ trade, address, leverage });
 }

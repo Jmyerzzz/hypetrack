@@ -19,7 +19,12 @@ import {
   Th,
 } from "@/components/ui";
 import type { OutcomeMarketMap, OutcomeMarketView } from "@/lib/api-types";
-import { cardTradeHref, isCardTrade } from "@/lib/card";
+import {
+  cardTradeHref,
+  fmtLeverage,
+  isCardTrade,
+  leveragedPct,
+} from "@/lib/card";
 import {
   fmtDuration,
   fmtNetPnlBreakdown,
@@ -57,6 +62,19 @@ const SPECIAL_SLICE_LABELS: Record<SliceAction, string> = {
  */
 const fmtTradePx = (px: number | null, kind: Trade["kind"]): string =>
   kind === "outcome" ? fmtPct(px, { digits: 1 }) : fmtPrice(px);
+
+/**
+ * CoinTag sub slot, mirroring the positions table's "20× cross": the coin's
+ * current leverage setting (fills never recorded the historical one), then
+ * any data caveat.
+ */
+function tradeSub(trade: Trade, leverage: number | undefined): string | null {
+  const parts = [
+    leverage != null ? fmtLeverage(leverage) : null,
+    trade.truncated ? "partial history" : null,
+  ].filter((part) => part != null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 function TradeDetail({
   trade,
@@ -263,12 +281,14 @@ function TradeDetail({
 function TradeCard({
   trade,
   address,
+  leverage,
   market,
   isOpen,
   onToggle,
 }: {
   trade: Trade;
   address: string;
+  leverage: number | undefined;
   market: OutcomeMarketView | undefined;
   isOpen: boolean;
   onToggle: () => void;
@@ -287,7 +307,7 @@ function TradeCard({
           <MarketTag
             coin={trade.coin}
             market={market}
-            sub={trade.truncated ? "partial history" : null}
+            sub={tradeSub(trade, leverage)}
           />
           <span className="flex flex-wrap items-center gap-1.5">
             {market ? (
@@ -305,7 +325,7 @@ function TradeCard({
         <span className="flex shrink-0 flex-col items-end gap-0.5">
           <Pnl
             value={trade.netPnl}
-            pct={trade.netPnlPct}
+            pct={leveragedPct(trade.netPnlPct, leverage)}
             className="text-[15px] font-semibold"
           />
           {trade.status === "open" && (
@@ -427,6 +447,7 @@ export function TradesTable({
   markets,
   timeWindow,
   address,
+  leverageByCoin,
 }: {
   trades: Trade[];
   tradesTotal: number;
@@ -435,6 +456,8 @@ export function TradesTable({
   timeWindow: TimeWindow;
   /** Account the trades belong to; PnL card links carry it. */
   address: string;
+  /** Current per-coin leverage settings; %s render multiplied by them. */
+  leverageByCoin: Record<string, number>;
 }) {
   const [view, setView] = useViewMode();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -584,6 +607,7 @@ export function TradesTable({
               key={t.id}
               trade={t}
               address={address}
+              leverage={leverageByCoin[t.coin]}
               market={markets[t.coin]}
               isOpen={expanded === t.id}
               onToggle={() => toggle(t.id)}
@@ -613,6 +637,7 @@ export function TradesTable({
               {shown.map((t) => {
                 const isOpen = expanded === t.id;
                 const market = markets[t.coin];
+                const leverage = leverageByCoin[t.coin];
                 return (
                   <Fragment key={t.id}>
                     <tr
@@ -660,7 +685,7 @@ export function TradesTable({
                         <MarketTag
                           coin={t.coin}
                           market={market}
-                          sub={t.truncated ? "partial history" : null}
+                          sub={tradeSub(t, leverage)}
                         />
                       </Td>
                       <Td align="left">
@@ -680,7 +705,7 @@ export function TradesTable({
                       <Td>
                         <Pnl
                           value={t.netPnl}
-                          pct={t.netPnlPct}
+                          pct={leveragedPct(t.netPnlPct, leverage)}
                           className="text-[13px] font-medium"
                         />
                         {t.status === "open" && (

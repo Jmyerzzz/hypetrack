@@ -210,6 +210,12 @@ export type ActivityPayload = {
   fetchedAt: number;
   trades: Trade[];
   tradesTotal: number;
+  /**
+   * Current leverage setting per perp coin in `trades` (from
+   * `activeAssetData` — fills never recorded the historical one). Missing
+   * key = unknown: delisted market, fetch failure, or past the coin cap.
+   */
+  leverageByCoin: Record<string, number>;
   outcomeMarkets: OutcomeMarketMap;
   stats: TradeStats;
   recentFills: FillView[];

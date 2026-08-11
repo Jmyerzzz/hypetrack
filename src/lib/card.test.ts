@@ -3,6 +3,9 @@ import {
   cardRoe,
   cardTradeHref,
   findCardTrade,
+  fmtLeverage,
+  leverageCoins,
+  leveragedPct,
   sanitizeLeverage,
 } from "./card";
 import type { Trade } from "./trades";
@@ -96,6 +99,47 @@ describe("sanitizeLeverage", () => {
     expect(sanitizeLeverage(Number.NaN)).toBeNull();
     expect(sanitizeLeverage("20")).toBeNull();
     expect(sanitizeLeverage(undefined)).toBeNull();
+  });
+});
+
+describe("fmtLeverage", () => {
+  it("prints whole settings bare and fractional ones to a decimal", () => {
+    expect(fmtLeverage(20)).toBe("20×");
+    expect(fmtLeverage(1.5)).toBe("1.5×");
+  });
+});
+
+describe("leverageCoins", () => {
+  it("dedupes perp coins in trade order and skips outcome markets", () => {
+    const trades = [
+      trade({ coin: "ETH", id: "ETH:1:0" }),
+      trade({ coin: "#8560", id: "#8560:2:1", kind: "outcome" }),
+      trade({ coin: "BTC", id: "BTC:3:2" }),
+      trade({ coin: "ETH", id: "ETH:4:3" }),
+    ];
+    expect(leverageCoins(trades, 40)).toEqual(["ETH", "BTC"]);
+  });
+
+  it("stops at the cap so one account can't fan out unbounded calls", () => {
+    const trades = ["A", "B", "C"].map((coin, i) =>
+      trade({ coin, id: `${coin}:${i}:${i}` }),
+    );
+    expect(leverageCoins(trades, 2)).toEqual(["A", "B"]);
+  });
+});
+
+describe("leveragedPct", () => {
+  it("multiplies the net % by the setting", () => {
+    expect(leveragedPct(0.05, 20)).toBeCloseTo(1.0);
+  });
+
+  it("passes the unleveraged % through when the setting is unknown", () => {
+    expect(leveragedPct(0.05, undefined)).toBe(0.05);
+    expect(leveragedPct(0.05, null)).toBe(0.05);
+  });
+
+  it("keeps a missing % missing", () => {
+    expect(leveragedPct(null, 20)).toBeNull();
   });
 });
 

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
-import { cardRoe } from "../card";
+import { cardRoe, fmtLeverage } from "../card";
 import {
   fmtDay,
   fmtDuration,
@@ -100,10 +100,7 @@ export async function renderTradeCard({
   const roe = cardRoe(trade, leverage);
   const won = roe != null ? roe >= 0 : trade.netPnl >= 0;
   const pnlColor = won ? C.up : C.down;
-  const levLabel =
-    leverage == null
-      ? null
-      : `${Number.isInteger(leverage) ? leverage : leverage.toFixed(1)}×`;
+  const levLabel = leverage == null ? null : fmtLeverage(leverage);
   const closedAt = trade.closedAt ?? trade.openedAt;
 
   return new ImageResponse(

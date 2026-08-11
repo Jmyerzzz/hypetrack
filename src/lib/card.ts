@@ -41,6 +41,40 @@ export function sanitizeLeverage(value: unknown): number | null {
     : null;
 }
 
+/** "20×"; fractional settings (rare) keep one decimal. */
+export function fmtLeverage(leverage: number): string {
+  return `${Number.isInteger(leverage) ? leverage : leverage.toFixed(1)}×`;
+}
+
+/**
+ * Unique perp coins in trade order (most recent activity first), capped so a
+ * hyper-diversified account can't fan out into hundreds of `activeAssetData`
+ * calls. Coins past the cap simply show unleveraged numbers.
+ */
+export function leverageCoins(trades: Trade[], cap: number): string[] {
+  const coins: string[] = [];
+  const seen = new Set<string>();
+  for (const t of trades) {
+    if (t.kind !== "perp" || seen.has(t.coin)) continue;
+    seen.add(t.coin);
+    coins.push(t.coin);
+    if (coins.length >= cap) break;
+  }
+  return coins;
+}
+
+/**
+ * A trade list %, amplified by the coin's current leverage setting — the
+ * same convention as the PnL card, but applied to the net return the list
+ * already shows. Unknown leverage passes the unleveraged value through.
+ */
+export function leveragedPct(
+  pct: number | null,
+  leverage: number | null | undefined,
+): number | null {
+  return pct != null && leverage != null ? pct * leverage : pct;
+}
+
 /**
  * The card's headline %: price return × leverage, Hyperliquid's share-card
  * convention (fees and funding stay out of it — the $ line carries those).

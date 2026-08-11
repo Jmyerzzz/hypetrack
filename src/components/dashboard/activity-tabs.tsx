@@ -462,6 +462,7 @@ export function ActivityTabs({
                 markets={activity.outcomeMarkets}
                 timeWindow={timeWindow}
                 address={activity.address}
+                leverageByCoin={activity.leverageByCoin}
               />
             </>
           )}
