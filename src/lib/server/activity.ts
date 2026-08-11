@@ -4,6 +4,8 @@ import type {
   FundingView,
   TransferView,
 } from "../api-types";
+import { cache } from "../cache";
+import { leverageCoins } from "../card";
 import { computeTradeExcursion, pickCandleInterval } from "../excursions";
 import {
   fetchAllFills,
@@ -20,9 +22,17 @@ import {
   isSpotCoin,
   type Trade,
 } from "../trades";
+import { leverageMapForCoins } from "./leverage";
 import { getOutcomeIndex } from "./markets";
 
 const TRADES_PAYLOAD_CAP = 500;
+/**
+ * `activeAssetData` is one request per coin, so the current-leverage lookup
+ * is capped to the most recently traded markets (each info call carries rate
+ * -limit weight, and hyper-diversified accounts would otherwise fan out into
+ * hundreds). Trades past the cap show unleveraged numbers.
+ */
+const LEVERAGE_COIN_CAP = 40;
 const FILLS_PAYLOAD_CAP = 600;
 const FUNDING_PAYLOAD_CAP = 500;
 const TRANSFERS_PAYLOAD_CAP = 400;
@@ -138,6 +148,19 @@ function capSlices(trade: Trade): Trade {
   };
 }
 
+const ACTIVITY_TTL_MS = 3 * 60_000;
+
+/**
+ * Cached activity for one address — the activity API route and the PnL card
+ * route share this entry, so rendering a card right after the dashboard
+ * loaded costs no extra Hyperliquid calls.
+ */
+export function getActivity(address: string): Promise<ActivityPayload> {
+  return cache.getOrLoad(`activity:${address}`, ACTIVITY_TTL_MS, () =>
+    buildActivity(address),
+  );
+}
+
 export async function buildActivity(address: string): Promise<ActivityPayload> {
   const fillsResult = await fetchAllFills(address);
   // Perp trading account only: spot-wallet fills are excluded everywhere.
@@ -161,6 +184,14 @@ export async function buildActivity(address: string): Promise<ActivityPayload> {
       : (fundingEvents[fundingEvents.length - 1]?.time ?? fundingStart),
     events: fundingEvents,
   });
+
+  // Current leverage settings for the payload's perp coins; kicked off here so
+  // the per-coin calls overlap the candle fetches below. Never rejects — each
+  // coin degrades to "unknown" on failure.
+  const leveragePromise = leverageMapForCoins(
+    address,
+    leverageCoins(trades.slice(0, TRADES_PAYLOAD_CAP), LEVERAGE_COIN_CAP),
+  );
 
   // MFE/MAE: one candle series per market (shared across its trades),
   // most recently traded markets first.
@@ -241,6 +272,7 @@ export async function buildActivity(address: string): Promise<ActivityPayload> {
     fetchedAt: Date.now(),
     trades: payloadTrades,
     tradesTotal: trades.length,
+    leverageByCoin: await leveragePromise,
     // Only the markets actually referenced by this payload, so an account with
     // one outcome trade doesn't ship the whole HIP-4 universe.
     outcomeMarkets: describeOutcomeCoins(

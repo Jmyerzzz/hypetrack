@@ -20,6 +20,12 @@ import {
 } from "@/components/ui";
 import type { OutcomeMarketMap, OutcomeMarketView } from "@/lib/api-types";
 import {
+  cardTradeHref,
+  fmtLeverage,
+  isCardTrade,
+  leveragedPct,
+} from "@/lib/card";
+import {
   fmtDuration,
   fmtNetPnlBreakdown,
   fmtPct,
@@ -57,11 +63,26 @@ const SPECIAL_SLICE_LABELS: Record<SliceAction, string> = {
 const fmtTradePx = (px: number | null, kind: Trade["kind"]): string =>
   kind === "outcome" ? fmtPct(px, { digits: 1 }) : fmtPrice(px);
 
+/**
+ * CoinTag sub slot, mirroring the positions table's "20× cross": the coin's
+ * current leverage setting (fills never recorded the historical one), then
+ * any data caveat.
+ */
+function tradeSub(trade: Trade, leverage: number | undefined): string | null {
+  const parts = [
+    leverage != null ? fmtLeverage(leverage) : null,
+    trade.truncated ? "partial history" : null,
+  ].filter((part) => part != null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 function TradeDetail({
   trade,
+  address,
   inCard = false,
 }: {
   trade: Trade;
+  address: string;
   inCard?: boolean;
 }) {
   return (
@@ -74,6 +95,38 @@ function TradeDetail({
             "sticky left-0 max-w-[calc(100vw-2.5rem)] space-y-3 bg-inset px-4 py-4"
       }
     >
+      {isCardTrade(trade) && (
+        <div className="flex justify-end">
+          <a
+            href={cardTradeHref(address, trade.id)}
+            target="_blank"
+            rel="noreferrer"
+            title="Shareable PnL card, rendered on the fly — the leverage badge is this account's current setting for the market"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-edge bg-panel2 px-3 py-1.5 text-[11px] font-medium text-ink2 transition-colors hover:text-ink"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="size-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path
+                d="M12 15V3m0 0L8 7m4-4 4 4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            PnL card
+          </a>
+        </div>
+      )}
       <div className="grid gap-x-8 gap-y-2 text-[12px] sm:grid-cols-2 lg:grid-cols-4">
         <p className="flex justify-between gap-4 sm:block">
           <span className="text-ink3">Opened</span>
@@ -227,11 +280,15 @@ function TradeDetail({
 /** Card counterpart of a trade row: PnL leads, supporting fields below. */
 function TradeCard({
   trade,
+  address,
+  leverage,
   market,
   isOpen,
   onToggle,
 }: {
   trade: Trade;
+  address: string;
+  leverage: number | undefined;
   market: OutcomeMarketView | undefined;
   isOpen: boolean;
   onToggle: () => void;
@@ -250,7 +307,7 @@ function TradeCard({
           <MarketTag
             coin={trade.coin}
             market={market}
-            sub={trade.truncated ? "partial history" : null}
+            sub={tradeSub(trade, leverage)}
           />
           <span className="flex flex-wrap items-center gap-1.5">
             {market ? (
@@ -268,7 +325,7 @@ function TradeCard({
         <span className="flex shrink-0 flex-col items-end gap-0.5">
           <Pnl
             value={trade.netPnl}
-            pct={trade.netPnlPct}
+            pct={leveragedPct(trade.netPnlPct, leverage)}
             className="text-[15px] font-semibold"
           />
           {trade.status === "open" && (
@@ -377,7 +434,7 @@ function TradeCard({
           id={`trade-card-detail-${trade.id}`}
           className="mt-3 border-t border-edge"
         >
-          <TradeDetail trade={trade} inCard />
+          <TradeDetail trade={trade} address={address} inCard />
         </div>
       )}
     </DataCard>
@@ -389,12 +446,18 @@ export function TradesTable({
   tradesTotal,
   markets,
   timeWindow,
+  address,
+  leverageByCoin,
 }: {
   trades: Trade[];
   tradesTotal: number;
   markets: OutcomeMarketMap;
   /** The page's window; bounds the open date, which is the date rows show. */
   timeWindow: TimeWindow;
+  /** Account the trades belong to; PnL card links carry it. */
+  address: string;
+  /** Current per-coin leverage settings; %s render multiplied by them. */
+  leverageByCoin: Record<string, number>;
 }) {
   const [view, setView] = useViewMode();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -543,6 +606,8 @@ export function TradesTable({
             <TradeCard
               key={t.id}
               trade={t}
+              address={address}
+              leverage={leverageByCoin[t.coin]}
               market={markets[t.coin]}
               isOpen={expanded === t.id}
               onToggle={() => toggle(t.id)}
@@ -572,6 +637,7 @@ export function TradesTable({
               {shown.map((t) => {
                 const isOpen = expanded === t.id;
                 const market = markets[t.coin];
+                const leverage = leverageByCoin[t.coin];
                 return (
                   <Fragment key={t.id}>
                     <tr
@@ -619,7 +685,7 @@ export function TradesTable({
                         <MarketTag
                           coin={t.coin}
                           market={market}
-                          sub={t.truncated ? "partial history" : null}
+                          sub={tradeSub(t, leverage)}
                         />
                       </Td>
                       <Td align="left">
@@ -639,7 +705,7 @@ export function TradesTable({
                       <Td>
                         <Pnl
                           value={t.netPnl}
-                          pct={t.netPnlPct}
+                          pct={leveragedPct(t.netPnlPct, leverage)}
                           className="text-[13px] font-medium"
                         />
                         {t.status === "open" && (
@@ -708,7 +774,7 @@ export function TradesTable({
                         className="border-b border-edge"
                       >
                         <td colSpan={12} className="p-0">
-                          <TradeDetail trade={t} />
+                          <TradeDetail trade={t} address={address} />
                         </td>
                       </tr>
                     )}

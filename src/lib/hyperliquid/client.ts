@@ -1,4 +1,5 @@
 import type {
+  HlActiveAssetData,
   HlAllMids,
   HlCandle,
   HlClearinghouseState,
@@ -164,6 +165,18 @@ export async function fetchClearinghouseState(
     user,
     ...(dex ? { dex } : {}),
   });
+}
+
+/**
+ * The user's current leverage setting for one coin (builder-DEX coins use
+ * their full `dex:COIN` name). Works with no open position, which is what
+ * makes it usable for closed-trade PnL cards.
+ */
+export async function fetchActiveAssetData(
+  user: string,
+  coin: string,
+): Promise<HlActiveAssetData> {
+  return hlInfo<HlActiveAssetData>({ type: "activeAssetData", user, coin });
 }
 
 /** Every perp DEX: a leading `null` main book, then the HIP-3 builder DEXs. */
