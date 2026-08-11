@@ -95,6 +95,17 @@ export type HlClearinghouseState = {
 };
 
 /**
+ * `activeAssetData` for one user × coin: the account's leverage setting for
+ * the asset. Unlike `clearinghouseState` it answers even when no position is
+ * open — the slider value persists after a position fully closes.
+ */
+export type HlActiveAssetData = {
+  user: string;
+  coin: string;
+  leverage: HlLeverage;
+};
+
+/**
  * One entry from `perpDexs`: a HIP-3 builder-deployed perp DEX. The endpoint
  * returns the main book as a leading `null`, then one object per builder DEX.
  */

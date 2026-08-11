@@ -461,6 +461,7 @@ export function ActivityTabs({
                 tradesTotal={activity.tradesTotal}
                 markets={activity.outcomeMarkets}
                 timeWindow={timeWindow}
+                address={activity.address}
               />
             </>
           )}

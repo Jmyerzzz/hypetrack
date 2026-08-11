@@ -4,6 +4,7 @@ import type {
   FundingView,
   TransferView,
 } from "../api-types";
+import { cache } from "../cache";
 import { computeTradeExcursion, pickCandleInterval } from "../excursions";
 import {
   fetchAllFills,
@@ -136,6 +137,19 @@ function capSlices(trade: Trade): Trade {
     slices: [...head, ...tail],
     slicesOmitted: trade.slices.length - SLICES_PER_TRADE_CAP,
   };
+}
+
+const ACTIVITY_TTL_MS = 3 * 60_000;
+
+/**
+ * Cached activity for one address — the activity API route and the PnL card
+ * route share this entry, so rendering a card right after the dashboard
+ * loaded costs no extra Hyperliquid calls.
+ */
+export function getActivity(address: string): Promise<ActivityPayload> {
+  return cache.getOrLoad(`activity:${address}`, ACTIVITY_TTL_MS, () =>
+    buildActivity(address),
+  );
 }
 
 export async function buildActivity(address: string): Promise<ActivityPayload> {
