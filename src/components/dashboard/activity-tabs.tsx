@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { marketName, Pnl, RefreshButton, Skeleton } from "@/components/ui";
+import {
+  marketName,
+  Pnl,
+  RefreshButton,
+  Skeleton,
+  smallCents,
+} from "@/components/ui";
 import type {
   ActivityPayload,
   OrderView,
@@ -226,7 +232,7 @@ function PerformanceStrip({
         ) : (
           <Parts>
             <span className="num text-downt">
-              −{fmtUsd(risk.maxDrawdownUsd, { compact: true })}
+              −{smallCents(fmtUsd(risk.maxDrawdownUsd, { compact: true }))}
             </span>
             {risk.maxDrawdownPct != null && (
               <span className="num text-[11px] text-ink3">

@@ -9,6 +9,7 @@ import {
   ExplorerLink,
   MarketLabel,
   Pnl,
+  smallCents,
   Td,
   Th,
   ViewToggle,
@@ -54,7 +55,7 @@ function feeLabel(f: FillView): React.ReactNode {
   // Outcome fills are charged in their own contract, so naming the token only
   // adds noise when nothing was charged — which is the usual case there.
   return f.feeToken === "USDC" || f.fee === 0 ? (
-    fmtUsd(f.fee)
+    smallCents(fmtUsd(f.fee))
   ) : (
     <span>
       {fmtSize(f.fee)}{" "}
@@ -79,7 +80,7 @@ function FillCard({ f, markets }: { f: FillView; markets: OutcomeMarketMap }) {
             <Pnl value={f.closedPnl} className="text-[15px] font-semibold" />
           ) : (
             <span className="num text-[15px] font-semibold text-ink">
-              {fmtUsd(f.notional, { compact: true })}
+              {smallCents(fmtUsd(f.notional, { compact: true }))}
             </span>
           )}
           <p className="num text-[11px] text-ink3">{fmtTime(f.time)}</p>
@@ -95,7 +96,7 @@ function FillCard({ f, markets }: { f: FillView; markets: OutcomeMarketMap }) {
         </CardField>
         <CardField label="Value">
           <span className="num text-ink2">
-            {fmtUsd(f.notional, { compact: true })}
+            {smallCents(fmtUsd(f.notional, { compact: true }))}
           </span>
         </CardField>
         <CardField label="Fee" align="right">
@@ -174,7 +175,7 @@ export function FillsTable({
                   <Td className="num">{fmtPrice(f.px)}</Td>
                   <Td className="num">{fmtSize(f.sz)}</Td>
                   <Td className="num text-ink2">
-                    {fmtUsd(f.notional, { compact: true })}
+                    {smallCents(fmtUsd(f.notional, { compact: true }))}
                   </Td>
                   <Td className="num text-ink2">{feeLabel(f)}</Td>
                   <Td>

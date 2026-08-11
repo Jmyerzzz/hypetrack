@@ -7,6 +7,7 @@ import {
   DataCard,
   EmptyState,
   ExplorerLink,
+  smallCents,
   Td,
   Th,
   ViewToggle,
@@ -39,7 +40,7 @@ function TransferCard({ t }: { t: TransferView }) {
         <span
           className={`num shrink-0 text-[15px] font-semibold ${amountTone(t.amountUsd)}`}
         >
-          {t.amountUsd != null ? fmtUsdSigned(t.amountUsd) : "—"}
+          {t.amountUsd != null ? smallCents(fmtUsdSigned(t.amountUsd)) : "—"}
         </span>
       </div>
       {(t.detail || t.hash) && (
@@ -87,11 +88,11 @@ export function TransfersTable({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge px-4 py-3 text-xs text-ink2">
         <span className="num">
           <span className="whitespace-nowrap">
-            Deposited {fmtUsdSigned(totalDeposited)}
+            Deposited {smallCents(fmtUsdSigned(totalDeposited))}
           </span>
           {" · "}
           <span className="whitespace-nowrap">
-            Withdrawn {fmtUsdSigned(-totalWithdrawn)}
+            Withdrawn {smallCents(fmtUsdSigned(-totalWithdrawn))}
           </span>
         </span>
         <ViewToggle value={view} onChange={setView} />
@@ -132,7 +133,7 @@ export function TransfersTable({
                   <Td>
                     {t.amountUsd != null ? (
                       <span className={`num ${amountTone(t.amountUsd)}`}>
-                        {fmtUsdSigned(t.amountUsd)}
+                        {smallCents(fmtUsdSigned(t.amountUsd))}
                       </span>
                     ) : (
                       <span className="text-ink3">—</span>

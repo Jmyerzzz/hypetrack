@@ -43,6 +43,32 @@ export function fmtUsdSigned(
   return abs;
 }
 
+/**
+ * Splits formatted text on the cents of every dollar amount in it, cents at
+ * each odd index: "$4,506.32" → ["$4,506", ".32", ""]. Renderers set those runs
+ * a size down so a figure leads on its whole dollars. Only true cents split
+ * out: a price or a percentage reads at one size, and the fraction of a
+ * compacted "$2.66B" is significant figures rather than change — hence the
+ * letter guard. A breakdown line holds several amounts, so every match splits.
+ */
+export function splitCents(text: string): string[] {
+  // The digit in the guard matters as much as the letter: without it the
+  // fraction backtracks to a shorter run to slip past a compact suffix, and
+  // "$2.66B" splits at ".6".
+  const cents = /(\$[\d,]+)(\.\d+)(?![\d.A-Za-z])/g;
+  const parts: string[] = [];
+  let last = 0;
+  let match = cents.exec(text);
+  while (match !== null) {
+    const at = match.index + match[1].length;
+    parts.push(text.slice(last, at), match[2]);
+    last = at + match[2].length;
+    match = cents.exec(text);
+  }
+  parts.push(text.slice(last));
+  return parts;
+}
+
 export function fmtCompact(value: number): string {
   if (!Number.isFinite(value)) return "—";
   return numCompact.format(value);

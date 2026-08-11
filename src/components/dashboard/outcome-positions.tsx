@@ -7,6 +7,7 @@ import {
   MarketTag,
   Pnl,
   SideBadge,
+  smallCents,
   Td,
   Th,
   ViewToggle,
@@ -72,7 +73,9 @@ function OutcomeCard({
         </CardField>
         <CardField label="Value" align="right">
           <span className="num">
-            {p.positionValue == null ? "—" : fmtUsd(p.positionValue)}
+            {p.positionValue == null
+              ? "—"
+              : smallCents(fmtUsd(p.positionValue))}
           </span>
         </CardField>
         <CardField label="Entry odds">
@@ -82,10 +85,14 @@ function OutcomeCard({
           <Odds px={p.markPx} />
         </CardField>
         <CardField label="Cost">
-          <span className="num text-ink2">{fmtUsd(p.entryNotional)}</span>
+          <span className="num text-ink2">
+            {smallCents(fmtUsd(p.entryNotional))}
+          </span>
         </CardField>
         <CardField label="Payout if won" align="right">
-          <span className="num text-upt">{fmtUsd(p.payoutIfWon)}</span>
+          <span className="num text-upt">
+            {smallCents(fmtUsd(p.payoutIfWon))}
+          </span>
         </CardField>
       </div>
     </DataCard>
@@ -114,7 +121,7 @@ export function OutcomePositions({
         </h2>
         <div className="flex items-center gap-3">
           <p className="num text-xs text-ink2">
-            {fmtUsd(totalValue, { compact: true })} value · uPnL{" "}
+            {smallCents(fmtUsd(totalValue, { compact: true }))} value · uPnL{" "}
             <Pnl value={totalUpnl} className="text-xs" />
           </p>
           <ViewToggle value={view} onChange={setView} />
@@ -175,11 +182,17 @@ export function OutcomePositions({
                     <Td>
                       <Odds px={p.markPx} />
                     </Td>
-                    <Td className="num text-ink2">{fmtUsd(p.entryNotional)}</Td>
-                    <Td className="num">
-                      {p.positionValue == null ? "—" : fmtUsd(p.positionValue)}
+                    <Td className="num text-ink2">
+                      {smallCents(fmtUsd(p.entryNotional))}
                     </Td>
-                    <Td className="num text-upt">{fmtUsd(p.payoutIfWon)}</Td>
+                    <Td className="num">
+                      {p.positionValue == null
+                        ? "—"
+                        : smallCents(fmtUsd(p.positionValue))}
+                    </Td>
+                    <Td className="num text-upt">
+                      {smallCents(fmtUsd(p.payoutIfWon))}
+                    </Td>
                     <Td>
                       {p.unrealizedPnl == null ? (
                         <span className="text-ink3">—</span>

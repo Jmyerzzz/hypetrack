@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { EmptyState, Pnl, SegmentedControl } from "@/components/ui";
+import { EmptyState, Pnl, SegmentedControl, smallCents } from "@/components/ui";
 import type { PortfolioPoint, PortfolioSeries } from "@/lib/api-types";
 import { fmtCompact, fmtTime, fmtUsd } from "@/lib/format";
 import { returnOnAvgEquity } from "@/lib/risk";
@@ -43,7 +43,11 @@ function ChartTooltip({
   return (
     <div className="rounded-lg border border-edge2 bg-panel2 px-3 py-2 shadow-xl">
       <p className="num text-sm font-semibold text-ink">
-        {metric === "pnl" ? <Pnl value={point.usd} /> : fmtUsd(point.usd)}
+        {metric === "pnl" ? (
+          <Pnl value={point.usd} />
+        ) : (
+          smallCents(fmtUsd(point.usd))
+        )}
       </p>
       <p className="mt-0.5 text-[11px] text-ink3">
         {fmtTime(point.t, { withYear })}
@@ -183,7 +187,7 @@ export function EquityChart({
           />
         ) : (
           <span className="num text-2xl font-semibold tracking-tight">
-            {fmtUsd(last?.usd ?? 0)}
+            {smallCents(fmtUsd(last?.usd ?? 0))}
           </span>
         )}
         {!isPnl && summary && (

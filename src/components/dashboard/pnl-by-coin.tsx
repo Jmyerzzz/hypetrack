@@ -1,6 +1,6 @@
 "use client";
 
-import { marketName, Skeleton } from "@/components/ui";
+import { marketName, Skeleton, smallCents } from "@/components/ui";
 import type { ActivityPayload } from "@/lib/api-types";
 import { fmtUsdSigned } from "@/lib/format";
 import type { WindowSummary } from "@/lib/stats";
@@ -111,7 +111,7 @@ export function PnlByCoin({
                     positive ? "text-upt" : "text-downt"
                   }`}
                 >
-                  {fmtUsdSigned(r.netPnl, { compact: true })}
+                  {smallCents(fmtUsdSigned(r.netPnl, { compact: true }))}
                 </span>
               </div>
             );

@@ -2,8 +2,37 @@
 
 import { useState } from "react";
 import type { OutcomeMarketView } from "@/lib/api-types";
-import { fmtPct, fmtUsdSigned } from "@/lib/format";
+import { fmtPct, fmtUsdSigned, splitCents } from "@/lib/format";
 import type { ViewMode } from "@/lib/hooks";
+
+/**
+ * Formatted text with the cents of every dollar amount set a size down, so a
+ * figure leads on its whole dollars — the part that's actually read down a
+ * column. Wrap money printed as text; `<Pnl>` and the components here already
+ * do. Strings bound for a `title` or a chart tick stay as they are: only markup
+ * can carry the size, and those can't hold any.
+ */
+export function smallCents(text: string): React.ReactNode {
+  const parts = splitCents(text);
+  if (parts.length === 1) return text;
+  // A hand-built loop rather than `.map`: position is a run's only identity
+  // here, and empty runs — text that opens or closes on cents — are skipped so
+  // they don't render as stray nodes.
+  const runs: React.ReactNode[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i] === "") continue;
+    runs.push(
+      i % 2 === 1 ? (
+        <span key={i} className="text-[0.85em]">
+          {parts[i]}
+        </span>
+      ) : (
+        parts[i]
+      ),
+    );
+  }
+  return runs;
+}
 
 /** Signed USD amount in status color; sign carried by text as well as color. */
 export function Pnl({
@@ -28,7 +57,7 @@ export function Pnl({
   return (
     <span className={`num ${tone} ${className}`}>
       <span className="whitespace-nowrap">
-        {fmtUsdSigned(value, { compact })}
+        {smallCents(fmtUsdSigned(value, { compact }))}
       </span>
       {pct != null && Number.isFinite(pct) && (
         <span className="ml-1.5 text-[0.85em] whitespace-nowrap opacity-80">

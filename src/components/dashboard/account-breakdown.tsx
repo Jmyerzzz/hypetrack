@@ -1,6 +1,6 @@
 "use client";
 
-import { Pnl } from "@/components/ui";
+import { Pnl, smallCents } from "@/components/ui";
 import type { OverviewPayload } from "@/lib/api-types";
 import { fmtCompact, fmtUsd } from "@/lib/format";
 
@@ -48,12 +48,16 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
         Account breakdown
       </h2>
       <div className="mt-2 divide-y divide-edge">
-        <Row label="Total equity">{fmtUsd(overview.totalEquity)}</Row>
-        <Row label="Perp equity">{fmtUsd(overview.perpEquity)}</Row>
-        <Row label="Spot value">{fmtUsd(overview.spotValue)}</Row>
+        <Row label="Total equity">
+          {smallCents(fmtUsd(overview.totalEquity))}
+        </Row>
+        <Row label="Perp equity">{smallCents(fmtUsd(overview.perpEquity))}</Row>
+        <Row label="Spot value">{smallCents(fmtUsd(overview.spotValue))}</Row>
         {/* Only shown when held, so perp-only accounts keep a tighter list. */}
         {overview.outcomeValue > 0 && (
-          <Row label="Outcome markets">{fmtUsd(overview.outcomeValue)}</Row>
+          <Row label="Outcome markets">
+            {smallCents(fmtUsd(overview.outcomeValue))}
+          </Row>
         )}
         <Row label="Unrealized PnL">
           <Pnl value={overview.totalUnrealizedPnl} className="text-[13px]" />
@@ -62,9 +66,11 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
           label="Withdrawable"
           hint="Funds you can withdraw now: the perp wallet's free collateral plus unencumbered spot USDC. Excludes USDC posted as position margin."
         >
-          {fmtUsd(overview.withdrawable)}
+          {smallCents(fmtUsd(overview.withdrawable))}
         </Row>
-        <Row label="Open notional">{fmtUsd(overview.totalNtlPos)}</Row>
+        <Row label="Open notional">
+          {smallCents(fmtUsd(overview.totalNtlPos))}
+        </Row>
         <Row label="Account leverage">
           {leverage != null && leverage > 0.001
             ? `${leverage.toFixed(2)}×`
@@ -81,7 +87,7 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
               Margin used
             </span>
             <span className="num flex flex-wrap justify-end gap-x-1.5 text-right text-[13px] text-ink">
-              <span>{fmtUsd(overview.marginUsed)}</span>
+              <span>{smallCents(fmtUsd(overview.marginUsed))}</span>
               <span className="text-ink3">
                 ({(marginRatio * 100).toFixed(1)}% of account equity)
               </span>
@@ -96,9 +102,9 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
             />
           </div>
         </div>
-        <Row label="Free collateral">{fmtUsd(freeCollateral)}</Row>
+        <Row label="Free collateral">{smallCents(fmtUsd(freeCollateral))}</Row>
         <Row label="Cross maintenance margin">
-          {fmtUsd(overview.maintenanceMarginUsed)}
+          {smallCents(fmtUsd(overview.maintenanceMarginUsed))}
           <span className="ml-1.5 text-ink3">
             ({(maintenanceRatio * 100).toFixed(1)}%)
           </span>
@@ -121,7 +127,7 @@ export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
                   {fmtCompact(b.total)}
                   <span className="ml-1.5 text-ink3">
                     {b.usdValue != null
-                      ? fmtUsd(b.usdValue, { compact: true })
+                      ? smallCents(fmtUsd(b.usdValue, { compact: true }))
                       : "—"}
                   </span>
                 </span>
