@@ -156,6 +156,23 @@ export type OverviewPayload = {
   allTimeVolume: number;
 };
 
+export type SubAccountView = {
+  /** User-chosen sub-account name as set on Hyperliquid. */
+  name: string;
+  /** The sub-account's own address — a full standalone account. */
+  address: string;
+};
+
+/**
+ * Sub-accounts owned by `address`. Empty for addresses without any, and for
+ * sub-account addresses themselves (the API can't walk back up to the master).
+ */
+export type SubAccountsPayload = {
+  address: string;
+  fetchedAt: number;
+  subAccounts: SubAccountView[];
+};
+
 export type FillView = {
   tid: number;
   time: number;

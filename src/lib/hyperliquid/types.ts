@@ -128,6 +128,20 @@ export type HlSpotClearinghouseState = {
   balances: HlSpotBalance[];
 };
 
+/**
+ * One entry from `subAccounts`: a named sub-account owned by a master address.
+ * Each sub-account is a full standalone account — every info endpoint accepts
+ * `subAccountUser` as the `user`, and the master's own queries never include
+ * sub-account balances, fills, or portfolio history.
+ */
+export type HlSubAccount = {
+  name: string;
+  subAccountUser: string;
+  master: string;
+  clearinghouseState: HlClearinghouseState;
+  spotState: HlSpotClearinghouseState;
+};
+
 export type HlSpotMeta = {
   universe: {
     /** Pair name, e.g. "PURR/USDC" or "@1". */

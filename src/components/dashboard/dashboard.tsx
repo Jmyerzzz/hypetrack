@@ -1,13 +1,19 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AddressForm } from "@/components/address-form";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RefreshButton, Skeleton } from "@/components/ui";
-import { fmtAgo, shortAddress } from "@/lib/format";
-import { rememberAddress, useActivity, useOverview } from "@/lib/hooks";
+import { fmtAgo, normalizeAddress, shortAddress } from "@/lib/format";
+import {
+  rememberAddress,
+  useActivity,
+  useOverview,
+  useSubAccounts,
+} from "@/lib/hooks";
 import { summarizeTrades, type WindowSummary } from "@/lib/stats";
 import {
   ALL_TIME_WINDOW,
@@ -16,6 +22,7 @@ import {
   tradesInWindow,
 } from "@/lib/trades";
 import { AccountBreakdown } from "./account-breakdown";
+import { AccountSwitcher } from "./account-switcher";
 import { ActivityTabs } from "./activity-tabs";
 import { EquityChart } from "./equity-chart";
 import { OutcomePositions } from "./outcome-positions";
@@ -88,11 +95,37 @@ function UpdatedAgo({ ts }: { ts: number }) {
 }
 
 export function Dashboard({ address }: { address: string }) {
-  const overview = useOverview(address);
-  const activity = useActivity(address);
+  // Sub-accounts are standalone addresses on Hyperliquid, so "viewing a
+  // sub-account" means repointing every query at its address. The selection
+  // lives in ?account= so a view survives refresh and can be shared; only
+  // addresses in the master's own sub-account list are honored.
+  const subAccounts = useSubAccounts(address);
+  const searchParams = useSearchParams();
+  const rawAccount = searchParams.get("account");
+  const accountParam = rawAccount ? normalizeAddress(rawAccount) : null;
+  const selectedSub =
+    (accountParam &&
+      subAccounts.data?.subAccounts.find((s) => s.address === accountParam)) ||
+    null;
+  const activeAddress = selectedSub?.address ?? address;
+  // A deep link names a sub before the list has resolved; hold the data
+  // queries instead of fetching the master's payloads only to discard them.
+  const accountResolving = accountParam !== null && subAccounts.isPending;
+
+  const overview = useOverview(activeAddress, !accountResolving);
+  const activity = useActivity(activeAddress, !accountResolving);
   const queryClient = useQueryClient();
   // One window for the whole page; every trade-derived figure below reads it.
   const [timeWindow, setTimeWindow] = useState<TimeWindow>(ALL_TIME_WINDOW);
+
+  const selectAccount = (next: string) => {
+    const url = new URL(window.location.href);
+    if (next === address) url.searchParams.delete("account");
+    else url.searchParams.set("account", next);
+    // Shallow replace: switching accounts is view state, like the time
+    // window — it shouldn't grow the history stack or re-render the route.
+    window.history.replaceState(null, "", url);
+  };
 
   // Recomputed here rather than per section so the cards, the PnL split, the
   // performance strip and the table can't disagree about the same window.
@@ -118,15 +151,17 @@ export function Dashboard({ address }: { address: string }) {
   }, [address]);
 
   const refreshAll = () => {
-    queryClient.invalidateQueries({ queryKey: ["overview", address] });
-    queryClient.invalidateQueries({ queryKey: ["activity", address] });
+    queryClient.invalidateQueries({ queryKey: ["overview", activeAddress] });
+    queryClient.invalidateQueries({ queryKey: ["activity", activeAddress] });
   };
 
   const refreshing = overview.isFetching || activity.isFetching;
+  // Total equity, not perp equity: a freshly funded account (say a sub-account
+  // holding USDC before its algo starts) has a balance — the banner would lie.
   const isEmptyAccount =
     overview.data &&
     activity.data &&
-    overview.data.perpEquity < 0.01 &&
+    overview.data.totalEquity < 0.01 &&
     overview.data.positions.length === 0 &&
     activity.data.fillsTotal === 0;
 
@@ -147,13 +182,20 @@ export function Dashboard({ address }: { address: string }) {
             refresh control on the title's line at every phone width. */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-1.5">
-            <h1 className="num truncate text-sm text-ink" title={address}>
-              <span className="hidden sm:inline">{address}</span>
-              <span className="sm:hidden">{shortAddress(address)}</span>
+            {/* The line always names the account whose data is on screen, so
+                copy and the explorer link follow the switcher's selection. */}
+            <h1 className="num truncate text-sm text-ink" title={activeAddress}>
+              <span className="hidden sm:inline">{activeAddress}</span>
+              <span className="sm:hidden">{shortAddress(activeAddress)}</span>
             </h1>
-            <CopyButton text={address} />
+            {selectedSub && (
+              <span className="hidden shrink-0 rounded-full border border-edge bg-panel px-2.5 py-0.5 text-[11px] font-medium text-ink2 sm:inline">
+                sub-account
+              </span>
+            )}
+            <CopyButton text={activeAddress} />
             <a
-              href={`https://app.hyperliquid.xyz/explorer/address/${address}`}
+              href={`https://app.hyperliquid.xyz/explorer/address/${activeAddress}`}
               target="_blank"
               rel="noreferrer"
               title="View on Hyperliquid explorer"
@@ -214,6 +256,15 @@ export function Dashboard({ address }: { address: string }) {
                 This address has no Hyperliquid perp trading history — no
                 account balance, positions, or fills were found.
               </div>
+            )}
+
+            {subAccounts.data && subAccounts.data.subAccounts.length > 0 && (
+              <AccountSwitcher
+                master={address}
+                subAccounts={subAccounts.data.subAccounts}
+                selected={activeAddress}
+                onSelect={selectAccount}
+              />
             )}
 
             <div className="flex flex-wrap items-center gap-3">

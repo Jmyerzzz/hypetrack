@@ -12,6 +12,7 @@ import type {
   HlPortfolio,
   HlSpotClearinghouseState,
   HlSpotMetaAndAssetCtxs,
+  HlSubAccount,
 } from "./types";
 
 const API_URL = "https://api.hyperliquid.xyz/info";
@@ -186,6 +187,17 @@ export async function fetchPerpDexs(): Promise<HlPerpDex[]> {
 
 export async function fetchPortfolio(user: string): Promise<HlPortfolio> {
   return hlInfo<HlPortfolio>({ type: "portfolio", user });
+}
+
+/**
+ * Sub-accounts owned by a master address. Returns `null` (not `[]`) when the
+ * address has none — including when the address is itself a sub-account, so
+ * this can't walk from a sub-account back up to its master.
+ */
+export async function fetchSubAccounts(
+  user: string,
+): Promise<HlSubAccount[] | null> {
+  return hlInfo<HlSubAccount[] | null>({ type: "subAccounts", user });
 }
 
 export async function fetchSpotClearinghouseState(

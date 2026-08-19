@@ -2,7 +2,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import type { ActivityPayload, OverviewPayload } from "./api-types";
+import type {
+  ActivityPayload,
+  OverviewPayload,
+  SubAccountsPayload,
+} from "./api-types";
 
 export type ViewMode = "table" | "cards";
 
@@ -65,19 +69,31 @@ async function getJson<T>(url: string): Promise<T> {
   return body as T;
 }
 
-export function useOverview(address: string) {
+export function useOverview(address: string, enabled = true) {
   return useQuery({
     queryKey: ["overview", address],
     queryFn: () => getJson<OverviewPayload>(`/api/overview/${address}`),
     refetchInterval: 30_000,
+    enabled,
   });
 }
 
-export function useActivity(address: string) {
+export function useActivity(address: string, enabled = true) {
   return useQuery({
     queryKey: ["activity", address],
     queryFn: () => getJson<ActivityPayload>(`/api/activity/${address}`),
     staleTime: 120_000,
+    enabled,
+  });
+}
+
+export function useSubAccounts(address: string) {
+  return useQuery({
+    queryKey: ["subaccounts", address],
+    queryFn: () => getJson<SubAccountsPayload>(`/api/subaccounts/${address}`),
+    staleTime: 5 * 60_000,
+    // A failure here only hides the switcher; don't hold the page hostage.
+    retry: 1,
   });
 }
 
