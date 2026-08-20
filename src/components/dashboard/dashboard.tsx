@@ -258,16 +258,20 @@ export function Dashboard({ address }: { address: string }) {
               </div>
             )}
 
-            {subAccounts.data && subAccounts.data.subAccounts.length > 0 && (
-              <AccountSwitcher
-                master={address}
-                subAccounts={subAccounts.data.subAccounts}
-                selected={activeAddress}
-                onSelect={selectAccount}
-              />
-            )}
-
             <div className="flex flex-wrap items-center gap-3">
+              {subAccounts.data && subAccounts.data.subAccounts.length > 0 && (
+                /* A phone stacks the switcher above the time row (order 0 vs
+                   the picker's DOM position); from sm they share the row with
+                   the switcher pushed to the right edge. */
+                <div className="sm:order-1 sm:ml-auto">
+                  <AccountSwitcher
+                    master={address}
+                    subAccounts={subAccounts.data.subAccounts}
+                    selected={activeAddress}
+                    onSelect={selectAccount}
+                  />
+                </div>
+              )}
               <WindowPicker timeWindow={timeWindow} onChange={setTimeWindow} />
             </div>
 
