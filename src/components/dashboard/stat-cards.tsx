@@ -2,7 +2,7 @@
 
 import { Pnl, Skeleton, smallCents } from "@/components/ui";
 import type { ActivityPayload, OverviewPayload } from "@/lib/api-types";
-import { fmtUsd, fmtUsdSigned } from "@/lib/format";
+import { useMoney } from "@/lib/privacy";
 import type { WindowSummary } from "@/lib/stats";
 
 function Card({
@@ -49,6 +49,7 @@ export function StatCards({
   /** Window-scoped trade summary; null when the window covers everything. */
   summary: WindowSummary | null;
 }) {
+  const { fmtUsd, fmtUsdSigned } = useMoney();
   const stats = activity?.stats;
   const netDeposits = activity
     ? activity.totalDeposited - activity.totalWithdrawn

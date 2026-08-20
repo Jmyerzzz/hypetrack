@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import type { OutcomeMarketView } from "@/lib/api-types";
-import { fmtPct, fmtUsdSigned, splitCents } from "@/lib/format";
+import { fmtPct, splitCents } from "@/lib/format";
 import type { ViewMode } from "@/lib/hooks";
+import { useMoney } from "@/lib/privacy";
 
 /**
  * Formatted text with the cents of every dollar amount set a size down, so a
@@ -48,6 +49,7 @@ export function Pnl({
   className?: string;
   muted?: boolean;
 }) {
+  const { fmtUsdSigned } = useMoney();
   const tone =
     Math.abs(value) < 0.005 || muted
       ? "text-ink2"
@@ -685,19 +687,29 @@ export function CardField({
  * allows. `minWidth` tunes the density per list — sparse cards pack tighter.
  * The `min(...,100%)` guard keeps a single column from overflowing a narrow
  * viewport.
+ *
+ * Every card is the same height, the tallest one in the list setting it: the
+ * optional lines inside one — a trigger's distance from mark, a coverage note
+ * — otherwise leave a grid of ragged-bottomed cards that reads as broken
+ * rather than as varying content. `uniform: false` drops back to matching
+ * heights within each row, which is what a list wants while one of its cards
+ * is expanded across the full width: every other row would grow to match it.
  */
 export function CardList({
   children,
   minWidth = 320,
+  uniform = true,
 }: {
   children: React.ReactNode;
   minWidth?: number;
+  uniform?: boolean;
 }) {
   return (
     <div
-      className="grid items-start gap-2.5 p-3"
+      className="grid gap-2.5 p-3"
       style={{
         gridTemplateColumns: `repeat(auto-fill, minmax(min(${minWidth}px, 100%), 1fr))`,
+        gridAutoRows: uniform ? "1fr" : undefined,
       }}
     >
       {children}

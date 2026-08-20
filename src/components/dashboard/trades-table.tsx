@@ -25,17 +25,9 @@ import {
   isCardTrade,
   leveragedPct,
 } from "@/lib/card";
-import {
-  fmtDuration,
-  fmtNetPnlBreakdown,
-  fmtPct,
-  fmtPrice,
-  fmtSize,
-  fmtTime,
-  fmtUsd,
-  fmtUsdSigned,
-} from "@/lib/format";
+import { fmtDuration, fmtPct, fmtPrice, fmtTime } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
+import { useMoney } from "@/lib/privacy";
 import {
   type SliceAction,
   type TimeWindow,
@@ -85,6 +77,7 @@ function TradeDetail({
   address: string;
   inCard?: boolean;
 }) {
+  const { fmtUsd, fmtUsdSigned, fmtNetPnlBreakdown, fmtSize } = useMoney();
   return (
     <div
       className={
@@ -293,6 +286,7 @@ function TradeCard({
   isOpen: boolean;
   onToggle: () => void;
 }) {
+  const { fmtUsd, fmtSize } = useMoney();
   return (
     // Expanded cards take the whole row so the fill table has room to breathe.
     <DataCard active={isOpen} span={isOpen}>
@@ -459,6 +453,7 @@ export function TradesTable({
   /** Current per-coin leverage settings; %s render multiplied by them. */
   leverageByCoin: Record<string, number>;
 }) {
+  const { fmtUsd, fmtSize } = useMoney();
   const [view, setView] = useViewMode();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [coinFilter, setCoinFilter] = useState("all");
@@ -601,7 +596,12 @@ export function TradesTable({
       </FilterRow>
 
       {view === "cards" ? (
-        <CardList minWidth={340}>
+        <CardList
+          minWidth={340}
+          // An expanded card spans the full width and carries a detail table,
+          // so uniform rows would grow every other row to match it.
+          uniform={expanded === null}
+        >
           {shown.map((t) => (
             <TradeCard
               key={t.id}

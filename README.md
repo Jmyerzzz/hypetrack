@@ -42,6 +42,12 @@ fills, and orders cover both perps and outcome markets.
   Generated markets get decoded names (`BTC ≥ 64,715`, `BTC 63,420 – 66,009`);
   markets that already settled drop out of Hyperliquid's metadata, so they
   degrade to their outcome id rather than to a guessed name.
+- **Privacy mode** — one toggle in the header masks every dollar figure,
+  position size and token balance behind `$•••`, and drops the equity chart's
+  scale. Percentages, prices, durations and counts stay, so a screenshot still
+  shows how the account is doing without showing what it's worth. Sizes go with
+  the amounts because size times a public mark price is the notional. Remembered
+  across sessions.
 - **Everything else** — open orders, raw fills, hourly funding events, and
   deposits/withdrawals/transfers.
 - **Liquidations flagged**, TWAP fills marked, builder-dex perps (e.g.

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AddressForm } from "@/components/address-form";
 import { Logo } from "@/components/logo";
+import { PrivacyToggle } from "@/components/privacy-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RefreshButton, Skeleton } from "@/components/ui";
 import { fmtAgo, normalizeAddress, shortAddress } from "@/lib/format";
@@ -172,6 +173,7 @@ export function Dashboard({ address }: { address: string }) {
           <Logo />
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
             <AddressForm />
+            <PrivacyToggle />
             <ThemeToggle />
           </div>
         </div>

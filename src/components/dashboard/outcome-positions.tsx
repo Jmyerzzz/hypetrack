@@ -13,8 +13,9 @@ import {
   ViewToggle,
 } from "@/components/ui";
 import type { OutcomeMarketMap, OutcomePositionView } from "@/lib/api-types";
-import { fmtPct, fmtPrice, fmtSize, fmtUsd } from "@/lib/format";
+import { fmtPct, fmtPrice } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
+import { useMoney } from "@/lib/privacy";
 
 /**
  * A price on an outcome market *is* the market's implied probability, so it is
@@ -36,6 +37,7 @@ function OutcomeCard({
   p: OutcomePositionView;
   markets: OutcomeMarketMap;
 }) {
+  const { fmtUsd, fmtSize } = useMoney();
   const market = markets[p.coin];
   return (
     <DataCard>
@@ -106,6 +108,7 @@ export function OutcomePositions({
   positions: OutcomePositionView[];
   markets: OutcomeMarketMap;
 }) {
+  const { fmtUsd, fmtSize } = useMoney();
   const [view, setView] = useViewMode();
   const totalValue = positions.reduce((a, p) => a + (p.positionValue ?? 0), 0);
   const totalUpnl = positions.reduce((a, p) => a + (p.unrealizedPnl ?? 0), 0);

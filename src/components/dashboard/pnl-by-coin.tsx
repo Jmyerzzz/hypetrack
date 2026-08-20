@@ -2,7 +2,7 @@
 
 import { marketName, Skeleton, smallCents } from "@/components/ui";
 import type { ActivityPayload } from "@/lib/api-types";
-import { fmtUsdSigned } from "@/lib/format";
+import { useMoney } from "@/lib/privacy";
 import type { WindowSummary } from "@/lib/stats";
 
 export function PnlByCoin({
@@ -15,6 +15,7 @@ export function PnlByCoin({
   summary: WindowSummary | null;
   pending: boolean;
 }) {
+  const { fmtUsdSigned } = useMoney();
   if (pending || !activity) {
     return (
       <section className="card flex-1 p-4">

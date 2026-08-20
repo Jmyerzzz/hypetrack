@@ -15,8 +15,9 @@ import {
   ViewToggle,
 } from "@/components/ui";
 import type { FillView, OutcomeMarketMap } from "@/lib/api-types";
-import { fmtPrice, fmtSize, fmtTime, fmtUsd } from "@/lib/format";
+import { fmtPrice, fmtTime } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
+import { useMoney } from "@/lib/privacy";
 
 const PAGE = 50;
 
@@ -51,7 +52,8 @@ function FillFlags({ f }: { f: FillView }) {
   );
 }
 
-function feeLabel(f: FillView): React.ReactNode {
+function FeeLabel({ f }: { f: FillView }): React.ReactNode {
+  const { fmtUsd, fmtSize } = useMoney();
   // Outcome fills are charged in their own contract, so naming the token only
   // adds noise when nothing was charged — which is the usual case there.
   return f.feeToken === "USDC" || f.fee === 0 ? (
@@ -65,6 +67,7 @@ function feeLabel(f: FillView): React.ReactNode {
 }
 
 function FillCard({ f, markets }: { f: FillView; markets: OutcomeMarketMap }) {
+  const { fmtUsd, fmtSize } = useMoney();
   return (
     <DataCard>
       <div className="flex items-start justify-between gap-3">
@@ -100,7 +103,9 @@ function FillCard({ f, markets }: { f: FillView; markets: OutcomeMarketMap }) {
           </span>
         </CardField>
         <CardField label="Fee" align="right">
-          <span className="num text-ink2">{feeLabel(f)}</span>
+          <span className="num text-ink2">
+            <FeeLabel f={f} />
+          </span>
         </CardField>
         <CardField label="Tx">
           <span className="num text-[12px]">
@@ -121,6 +126,7 @@ export function FillsTable({
   fillsTotal: number;
   markets: OutcomeMarketMap;
 }) {
+  const { fmtUsd, fmtSize } = useMoney();
   const [view, setView] = useViewMode();
   const [visible, setVisible] = useState(PAGE);
   if (fills.length === 0) {
@@ -177,7 +183,9 @@ export function FillsTable({
                   <Td className="num text-ink2">
                     {smallCents(fmtUsd(f.notional, { compact: true }))}
                   </Td>
-                  <Td className="num text-ink2">{feeLabel(f)}</Td>
+                  <Td className="num text-ink2">
+                    <FeeLabel f={f} />
+                  </Td>
                   <Td>
                     {f.closedPnl !== 0 ? (
                       <Pnl value={f.closedPnl} className="text-[13px]" />

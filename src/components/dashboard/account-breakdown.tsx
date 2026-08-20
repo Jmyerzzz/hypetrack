@@ -2,7 +2,7 @@
 
 import { Pnl, smallCents } from "@/components/ui";
 import type { OverviewPayload } from "@/lib/api-types";
-import { fmtCompact, fmtUsd } from "@/lib/format";
+import { useMoney } from "@/lib/privacy";
 
 function Row({
   label,
@@ -25,6 +25,7 @@ function Row({
 }
 
 export function AccountBreakdown({ overview }: { overview: OverviewPayload }) {
+  const { fmtUsd, fmtCompact } = useMoney();
   const leverage =
     overview.perpEquity > 0 ? overview.totalNtlPos / overview.perpEquity : null;
   // The unified account posts spot USDC as perp collateral directly (it is the
