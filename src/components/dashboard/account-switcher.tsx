@@ -23,16 +23,13 @@ export function AccountSwitcher({
   onSelect: (address: string) => void;
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <span className="text-xs text-ink3">Account</span>
-      <SegmentedControl
-        options={[
-          { value: master, label: "Main" },
-          ...subAccounts.map((s) => ({ value: s.address, label: s.name })),
-        ]}
-        value={selected}
-        onChange={onSelect}
-      />
-    </div>
+    <SegmentedControl
+      options={[
+        { value: master, label: "Main" },
+        ...subAccounts.map((s) => ({ value: s.address, label: s.name })),
+      ]}
+      value={selected}
+      onChange={onSelect}
+    />
   );
 }
