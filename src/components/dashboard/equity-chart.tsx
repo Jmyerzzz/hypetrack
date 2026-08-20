@@ -13,7 +13,8 @@ import {
 } from "recharts";
 import { EmptyState, Pnl, SegmentedControl, smallCents } from "@/components/ui";
 import type { PortfolioPoint, PortfolioSeries } from "@/lib/api-types";
-import { fmtCompact, fmtTime, fmtUsd } from "@/lib/format";
+import { fmtCompact, fmtTime } from "@/lib/format";
+import { useMoney } from "@/lib/privacy";
 import { returnOnAvgEquity } from "@/lib/risk";
 import { type TimeWindow, windowBounds, windowLabel } from "@/lib/trades";
 
@@ -38,6 +39,7 @@ function ChartTooltip({
   metric: Metric;
   withYear: boolean;
 }) {
+  const { fmtUsd } = useMoney();
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
   return (
@@ -63,6 +65,7 @@ export function EquityChart({
   portfolio: Record<string, PortfolioSeries>;
   timeWindow: TimeWindow;
 }) {
+  const { fmtUsd, hidden } = useMoney();
   const [metric, setMetric] = useState<Metric>("equity");
 
   // A relative preset has a portfolio bucket sampled for exactly that span; a
@@ -269,18 +272,25 @@ export function EquityChart({
                 axisLine={{ stroke: "var(--color-grid)" }}
                 minTickGap={48}
               />
+              {/* Masking the axis would print the same stand-in five times
+                  over; hiding the scale outright still leaves the shape of
+                  the curve, which is the part that isn't an amount. */}
               <YAxis
                 orientation="right"
                 domain={["auto", "auto"]}
                 tickFormatter={yTickFormat}
-                tick={{
-                  fontSize: 11,
-                  fill: "var(--color-ink3)",
-                  fontFamily: "var(--font-mono)",
-                }}
+                tick={
+                  hidden
+                    ? false
+                    : {
+                        fontSize: 11,
+                        fill: "var(--color-ink3)",
+                        fontFamily: "var(--font-mono)",
+                      }
+                }
                 tickLine={false}
                 axisLine={false}
-                width={56}
+                width={hidden ? 8 : 56}
               />
               {isPnl && min < 0 && max > 0 && (
                 <ReferenceLine

@@ -17,9 +17,10 @@ import {
   Th,
 } from "@/components/ui";
 import type { PositionTriggerView, PositionView } from "@/lib/api-types";
-import { fmtPct, fmtPrice, fmtSize, fmtUsd } from "@/lib/format";
+import { fmtPct, fmtPrice } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
 import { distanceFromMark } from "@/lib/positions";
+import { useMoney } from "@/lib/privacy";
 
 type PnlFilter = "all" | "profit" | "loss";
 type DirFilter = "all" | "long" | "short";
@@ -139,6 +140,7 @@ function TriggerSummary({
   szi: number;
   markPx: number | null;
 }) {
+  const { fmtSize } = useMoney();
   const own = triggers.filter((t) => t.kind === kind);
   if (own.length === 0) return <span className="text-ink3">—</span>;
   const [next, ...rest] = own;
@@ -189,6 +191,7 @@ function TriggerSummary({
 }
 
 function PositionCard({ p }: { p: PositionView }) {
+  const { fmtUsd, fmtSize } = useMoney();
   return (
     <DataCard>
       <div className="flex items-start justify-between gap-3">
@@ -269,6 +272,7 @@ export function PositionsTable({
   onRefresh: () => void;
   refreshing: boolean;
 }) {
+  const { fmtUsd, fmtSize } = useMoney();
   const [view, setView] = useViewMode();
   const [coinFilter, setCoinFilter] = useState("all");
   const [marginFilter, setMarginFilter] = useState<MarginFilter>("all");

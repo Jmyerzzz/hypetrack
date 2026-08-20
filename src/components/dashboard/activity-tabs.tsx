@@ -14,7 +14,8 @@ import type {
   OutcomeMarketMap,
   PortfolioSeries,
 } from "@/lib/api-types";
-import { dateInputMs, fmtDay, fmtDuration, fmtPct, fmtUsd } from "@/lib/format";
+import { dateInputMs, fmtDay, fmtDuration, fmtPct } from "@/lib/format";
+import { useMoney } from "@/lib/privacy";
 import { type RiskMetrics, riskInWindow } from "@/lib/risk";
 import type { TradeSummary, WindowSummary } from "@/lib/stats";
 import { isScoped, type TimeWindow } from "@/lib/trades";
@@ -82,6 +83,7 @@ function PerformanceStrip({
   /** True when the payload's trade cap keeps these from covering the window. */
   partial: boolean;
 }) {
+  const { fmtUsd } = useMoney();
   const items: { label: string; node: React.ReactNode; hint?: string }[] = [
     {
       label: "Win rate",
@@ -288,6 +290,7 @@ function PerformanceStrip({
 }
 
 function CoverageNote({ activity }: { activity: ActivityPayload }) {
+  const { fmtUsd } = useMoney();
   const c = activity.coverage;
   const feeTokens = Object.entries(activity.stats.feesByToken);
   return (

@@ -13,8 +13,9 @@ import {
   ViewToggle,
 } from "@/components/ui";
 import type { TransferView } from "@/lib/api-types";
-import { fmtTime, fmtUsdSigned } from "@/lib/format";
+import { fmtTime } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
+import { useMoney } from "@/lib/privacy";
 
 const PAGE = 50;
 
@@ -26,6 +27,7 @@ function amountTone(amountUsd: number | null): string {
 }
 
 function TransferCard({ t }: { t: TransferView }) {
+  const { fmtUsdSigned } = useMoney();
   return (
     <DataCard>
       <div className="flex items-start justify-between gap-3">
@@ -74,6 +76,7 @@ export function TransfersTable({
   totalDeposited: number;
   totalWithdrawn: number;
 }) {
+  const { fmtUsdSigned } = useMoney();
   const [view, setView] = useViewMode();
   const [visible, setVisible] = useState(PAGE);
   if (transfers.length === 0) {

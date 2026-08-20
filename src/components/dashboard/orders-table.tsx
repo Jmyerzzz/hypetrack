@@ -12,8 +12,9 @@ import {
   ViewToggle,
 } from "@/components/ui";
 import type { OrderView, OutcomeMarketMap } from "@/lib/api-types";
-import { fmtPrice, fmtSize, fmtTime, fmtUsd } from "@/lib/format";
+import { fmtPrice, fmtTime } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
+import { useMoney } from "@/lib/privacy";
 
 function OrderKind({ o }: { o: OrderView }) {
   return (
@@ -46,6 +47,7 @@ function OrderCard({
   o: OrderView;
   markets: OutcomeMarketMap;
 }) {
+  const { fmtUsd, fmtSize } = useMoney();
   return (
     <DataCard>
       <div className="flex items-start justify-between gap-3">
@@ -99,6 +101,7 @@ export function OrdersTable({
   orders: OrderView[] | undefined;
   markets: OutcomeMarketMap;
 }) {
+  const { fmtUsd, fmtSize } = useMoney();
   const [view, setView] = useViewMode();
   if (!orders || orders.length === 0) {
     return <EmptyState title="No open orders" />;

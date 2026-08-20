@@ -12,12 +12,14 @@ import {
   ViewToggle,
 } from "@/components/ui";
 import type { FundingView } from "@/lib/api-types";
-import { fmtSize, fmtTime } from "@/lib/format";
+import { fmtTime } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
+import { useMoney } from "@/lib/privacy";
 
 const PAGE = 50;
 
-function positionLabel(f: FundingView): React.ReactNode {
+function PositionLabel({ f }: { f: FundingView }) {
+  const { fmtSize } = useMoney();
   return (
     <>
       <span className={f.szi >= 0 ? "text-upt" : "text-downt"}>
@@ -40,7 +42,9 @@ function FundingCard({ f }: { f: FundingView }) {
       </div>
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-edge pt-3">
         <CardField label="Position size">
-          <span className="num">{positionLabel(f)}</span>
+          <span className="num">
+            <PositionLabel f={f} />
+          </span>
         </CardField>
         <CardField label="Hourly rate" align="right">
           <span className="num text-ink2">{(f.rate * 100).toFixed(5)}%</span>
@@ -105,7 +109,9 @@ export function FundingTable({
                   <Td align="left" className="font-medium text-ink">
                     {f.coin}
                   </Td>
-                  <Td className="num">{positionLabel(f)}</Td>
+                  <Td className="num">
+                    <PositionLabel f={f} />
+                  </Td>
                   <Td className="num text-ink2">
                     {(f.rate * 100).toFixed(5)}%
                   </Td>
