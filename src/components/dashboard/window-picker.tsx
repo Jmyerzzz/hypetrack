@@ -45,7 +45,9 @@ export function WindowPicker({
     });
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-2">
+    // Full width only on a phone (the presets stretch there); from sm the
+    // picker hugs its content so the account switcher can share its row.
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
         <SegmentedControl
           options={WINDOW_PRESETS}
