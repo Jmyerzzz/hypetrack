@@ -32,7 +32,7 @@ function Card({
 }
 
 const FLOW_HINT =
-  "External capital moved in and out of this account — bridge deposits and withdrawals plus peer transfers. Spot↔perp movements are excluded, and transfers of unpriced tokens can't be valued.";
+  "External capital moved in and out of this account — bridge deposits and withdrawals plus peer transfers. Movements between accounts the same owner controls are excluded (spot↔perp, and master↔sub-account), and transfers of unpriced tokens can't be valued.";
 
 /**
  * Point-in-time and lifetime figures only: PnL over the selected window lives

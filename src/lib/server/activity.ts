@@ -1,9 +1,4 @@
-import type {
-  ActivityPayload,
-  FillView,
-  FundingView,
-  TransferView,
-} from "../api-types";
+import type { ActivityPayload, FillView, FundingView } from "../api-types";
 import { cache } from "../cache";
 import { leverageCoins } from "../card";
 import { computeTradeExcursion, pickCandleInterval } from "../excursions";
@@ -14,7 +9,8 @@ import {
   fetchLedgerUpdates,
 } from "../hyperliquid/client";
 import { describeOutcomeCoins, isOutcomeCoin } from "../hyperliquid/outcome";
-import type { HlCandle, HlFill, HlLedgerUpdate } from "../hyperliquid/types";
+import { sumExternalFlows, toTransferView } from "../hyperliquid/transfers";
+import type { HlCandle, HlFill } from "../hyperliquid/types";
 import { computeStats } from "../stats";
 import {
   attributeFunding,
@@ -22,6 +18,7 @@ import {
   isSpotCoin,
   type Trade,
 } from "../trades";
+import { relatedAccounts } from "./accounts";
 import { leverageMapForCoins } from "./leverage";
 import { getOutcomeIndex } from "./markets";
 
@@ -67,73 +64,6 @@ function toFillView(f: HlFill, userAddress: string): FillView {
       f.liquidation != null &&
       (!f.liquidation.liquidatedUser ||
         f.liquidation.liquidatedUser.toLowerCase() === userAddress),
-  };
-}
-
-const TRANSFER_LABELS: Record<string, string> = {
-  deposit: "Deposit",
-  withdraw: "Withdraw",
-  accountClassTransfer: "Perp ⇄ Spot",
-  internalTransfer: "Internal transfer",
-  spotTransfer: "Spot transfer",
-  send: "Send",
-  cStakingTransfer: "Staking",
-  spotGenesis: "Genesis airdrop",
-  vaultDeposit: "Vault deposit",
-  vaultWithdraw: "Vault withdraw",
-  vaultDistribution: "Vault distribution",
-  subAccountTransfer: "Sub-account transfer",
-};
-
-function toTransferView(u: HlLedgerUpdate, userAddress: string): TransferView {
-  const d = u.delta;
-  let amountUsd: number | null = null;
-  let detail: string | null = null;
-
-  switch (d.type) {
-    case "deposit":
-      amountUsd = num(d.usdc);
-      break;
-    case "withdraw":
-      amountUsd = -num(d.usdc);
-      break;
-    case "accountClassTransfer":
-      amountUsd = num(d.usdc);
-      detail = d.toPerp ? "Spot → Perp" : "Perp → Spot";
-      break;
-    case "internalTransfer": {
-      const incoming = d.destination?.toLowerCase() === userAddress;
-      amountUsd = incoming ? num(d.usdc) : -num(d.usdc);
-      detail = incoming
-        ? `from ${d.user ?? "?"}`
-        : `to ${d.destination ?? "?"}`;
-      break;
-    }
-    case "spotTransfer":
-    case "send": {
-      const incoming = d.destination?.toLowerCase() === userAddress;
-      const value = num(d.usdcValue) || num(d.usdc);
-      amountUsd = value > 0 ? (incoming ? value : -value) : null;
-      detail =
-        `${d.amount ?? ""} ${d.token ?? ""} ${incoming ? `from ${d.user ?? "?"}` : `to ${d.destination ?? "?"}`}`.trim();
-      break;
-    }
-    default: {
-      if (d.usdc != null) amountUsd = num(d.usdc);
-      else if (d.usdcValue != null) amountUsd = num(d.usdcValue);
-      if (d.amount != null && d.token != null)
-        detail = `${d.amount} ${d.token}`;
-      break;
-    }
-  }
-
-  return {
-    time: u.time,
-    type: d.type,
-    label: TRANSFER_LABELS[d.type] ?? d.type,
-    amountUsd,
-    detail,
-    hash: u.hash,
   };
 }
 
@@ -192,6 +122,9 @@ export async function buildActivity(address: string): Promise<ActivityPayload> {
     address,
     leverageCoins(trades.slice(0, TRADES_PAYLOAD_CAP), LEVERAGE_COIN_CAP),
   );
+  // Same-owner accounts, for telling a sub-account top-up apart from real
+  // capital flow. Also overlapped with the candles below; never rejects.
+  const relatedPromise = relatedAccounts(address, ledgerResult.records);
 
   // MFE/MAE: one candle series per market (shared across its trades),
   // most recently traded markets first.
@@ -232,22 +165,11 @@ export async function buildActivity(address: string): Promise<ActivityPayload> {
 
   const stats = computeStats(trades, fills, fundingEvents);
 
+  const related = await relatedPromise;
   const transfers = ledgerResult.records
-    .map((u) => toTransferView(u, address))
+    .map((u) => toTransferView(u, address, related))
     .reverse();
-  // Capital in and out, keyed off the sign of the USD effect rather than the
-  // ledger `type`. Accounts are routinely funded by `send`/`spotTransfer` or a
-  // peer `internalTransfer` and never touch the Arbitrum bridge, so matching
-  // only `deposit`/`withdraw` reports $0 in for them. `accountClassTransfer`
-  // is skipped: it shuffles USDC between this account's own spot and perp
-  // wallets, moving nothing in or out.
-  let totalDeposited = 0;
-  let totalWithdrawn = 0;
-  for (const t of transfers) {
-    if (t.type === "accountClassTransfer" || t.amountUsd == null) continue;
-    if (t.amountUsd > 0) totalDeposited += t.amountUsd;
-    else totalWithdrawn -= t.amountUsd;
-  }
+  const { totalDeposited, totalWithdrawn } = sumExternalFlows(transfers);
 
   const recentFills = fills
     .slice(-FILLS_PAYLOAD_CAP)

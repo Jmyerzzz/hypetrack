@@ -206,6 +206,12 @@ export type TransferView = {
   /** Signed USD effect on this account when determinable. */
   amountUsd: number | null;
   detail: string | null;
+  /**
+   * Moves money between accounts the same owner controls — spot ⇄ perp, or
+   * master ⇄ sub-account — so it changed pockets rather than entering or
+   * leaving. Excluded from the deposit and withdrawal totals.
+   */
+  internal: boolean;
   hash: string;
 };
 

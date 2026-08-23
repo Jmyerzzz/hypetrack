@@ -19,11 +19,29 @@ import { useMoney } from "@/lib/privacy";
 
 const PAGE = 50;
 
+const INTERNAL_HINT =
+  "Between accounts the same owner controls — this account's own spot and perp wallets, or a master and its sub-accounts. The money changed pockets, so it isn't counted as deposited or withdrawn.";
+
+const TOTALS_HINT =
+  "External capital only: moves marked internal are excluded from both figures.";
+
 function amountTone(amountUsd: number | null): string {
   if (amountUsd == null) return "text-ink3";
   if (amountUsd > 0) return "text-upt";
   if (amountUsd < 0) return "text-downt";
   return "text-ink2";
+}
+
+/** Tag on a transfer that only moved money between the owner's own accounts. */
+function InternalTag() {
+  return (
+    <span
+      title={INTERNAL_HINT}
+      className="inline-flex items-center rounded-md border border-edge px-1.5 py-0.5 text-[11px] font-medium text-ink3"
+    >
+      internal
+    </span>
+  );
 }
 
 function TransferCard({ t }: { t: TransferView }) {
@@ -32,8 +50,11 @@ function TransferCard({ t }: { t: TransferView }) {
     <DataCard>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className="rounded-md bg-panel2 px-1.5 py-0.5 text-[11px] font-medium text-ink2">
-            {t.label}
+          <span className="flex flex-wrap items-center gap-1">
+            <span className="rounded-md bg-panel2 px-1.5 py-0.5 text-[11px] font-medium text-ink2">
+              {t.label}
+            </span>
+            {t.internal && <InternalTag />}
           </span>
           <p className="num mt-1 text-[11px] text-ink3">
             {fmtTime(t.time, { withYear: true })}
@@ -89,7 +110,7 @@ export function TransfersTable({
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge px-4 py-3 text-xs text-ink2">
-        <span className="num">
+        <span className="num" title={TOTALS_HINT}>
           <span className="whitespace-nowrap">
             Deposited {smallCents(fmtUsdSigned(totalDeposited))}
           </span>
@@ -129,8 +150,11 @@ export function TransfersTable({
                     {fmtTime(t.time, { withYear: true })}
                   </Td>
                   <Td align="left">
-                    <span className="rounded-md bg-panel2 px-1.5 py-0.5 text-[11px] font-medium text-ink2">
-                      {t.label}
+                    <span className="inline-flex items-center gap-1">
+                      <span className="rounded-md bg-panel2 px-1.5 py-0.5 text-[11px] font-medium text-ink2">
+                        {t.label}
+                      </span>
+                      {t.internal && <InternalTag />}
                     </span>
                   </Td>
                   <Td>

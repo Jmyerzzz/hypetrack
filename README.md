@@ -49,7 +49,10 @@ fills, and orders cover both perps and outcome markets.
   the amounts because size times a public mark price is the notional. Remembered
   across sessions.
 - **Everything else** — open orders, raw fills, hourly funding events, and
-  deposits/withdrawals/transfers.
+  deposits/withdrawals/transfers. The deposited/withdrawn totals count external
+  capital only: money moving between accounts the same owner controls — this
+  account's own spot and perp wallets, or a master and its sub-accounts — is
+  tagged *internal* in the transfer list and left out of both figures.
 - **Liquidations flagged**, TWAP fills marked, builder-dex perps (e.g.
   `xyz:AAPL` stock perps) fully supported.
 
