@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseStooqCsv, parseYahooChart } from "./benchmarks";
+import { parseFredCsv, parseStooqCsv, parseYahooChart } from "./benchmarks";
 
 describe("parseYahooChart", () => {
   const body = (extra: object = {}) =>
@@ -64,5 +64,44 @@ describe("parseStooqCsv", () => {
     expect(() =>
       parseStooqCsv("<html>Exceeded the daily hits limit"),
     ).toThrow();
+  });
+
+  it("quotes Stooq's own refusal back, so a quota is not read as an outage", () => {
+    expect(() => parseStooqCsv("Exceeded the daily hits limit")).toThrow(
+      "exceeded the daily hits limit",
+    );
+    expect(() => parseStooqCsv("No data")).toThrow("no data");
+  });
+});
+
+describe("parseFredCsv", () => {
+  const csv = [
+    "observation_date,SP500",
+    "2026-08-21,6340.75",
+    "2026-08-24,.",
+    "2026-08-25,6375.20",
+  ].join("\n");
+
+  it("reads closes and skips the days the index didn't print", () => {
+    const points = parseFredCsv(csv);
+    expect(points).toHaveLength(2);
+    expect(points[0].c).toBe(6340.75);
+    expect(points[1].c).toBe(6375.2);
+  });
+
+  it("stamps each close at the closing bell, like the other daily source", () => {
+    expect(new Date(parseFredCsv(csv)[0].t).toISOString()).toBe(
+      "2026-08-21T20:00:00.000Z",
+    );
+  });
+
+  it("accepts the older DATE header", () => {
+    expect(parseFredCsv("DATE,NASDAQ100\n2026-08-21,23100.5")).toEqual([
+      { t: Date.parse("2026-08-21T20:00:00Z"), c: 23100.5 },
+    ]);
+  });
+
+  it("throws on a body that isn't the CSV — an error page reads as no data", () => {
+    expect(() => parseFredCsv("<!DOCTYPE html><html>Not found")).toThrow();
   });
 });
