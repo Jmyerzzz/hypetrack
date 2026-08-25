@@ -24,6 +24,14 @@
   --down: #e5484d;
   --downt: #f0666b;
   --warn: #f5a524;
+  /* Benchmark overlays. Categorical slots in a fixed order (violet, then the
+     accent the account curve already wears, then orange and blue), stepped for
+     this surface and validated as a set: worst adjacent pair CVD ΔE 11.2,
+     normal-vision ΔE 19.2. Each line also carries its own dash pattern, so
+     identity never rests on hue alone. */
+  --bench-btc: #d95926;
+  --bench-spx: #3987e5;
+  --bench-ndx: #9085e9;
   --chart-cursor: rgba(255, 255, 255, 0.18);
   --scrollbar: rgba(255, 255, 255, 0.12);
   --dot: rgba(151, 252, 228, 0.05);
@@ -50,6 +58,11 @@
   --down: #b91c1c;
   --downt: #a31a1f;
   --warn: #b45309;
+  /* The same three hues stepped for the light surface — CVD ΔE 10.7,
+     normal-vision ΔE 26.8 on the adjacent pairlist, all ≥ 3:1 on white. */
+  --bench-btc: #eb6834;
+  --bench-spx: #2a78d6;
+  --bench-ndx: #4a3aa7;
   --chart-cursor: rgba(20, 38, 43, 0.28);
   --scrollbar: rgba(20, 38, 43, 0.2);
   --dot: rgba(13, 148, 136, 0.1);
@@ -75,6 +88,9 @@
   --color-down: var(--down);
   --color-downt: var(--downt);
   --color-warn: var(--warn);
+  --color-bench-btc: var(--bench-btc);
+  --color-bench-spx: var(--bench-spx);
+  --color-bench-ndx: var(--bench-ndx);
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
