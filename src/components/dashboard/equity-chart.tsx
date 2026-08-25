@@ -44,15 +44,18 @@ const YEAR_NEEDED_MS = 180 * DAY_MS;
 const MIN_STAKE_USD = 1;
 
 /**
- * Per-benchmark line style. The dash pattern is deliberate redundancy: color
- * alone would separate these four lines for most readers but not for all of
- * them, and a dashed line also reads as the reference it is next to the
- * account's own filled curve.
+ * One dash for every benchmark: what the pattern says is "reference, not this
+ * account" — the account's own curve is the only solid, filled one — so the
+ * three references wear it identically and hue alone tells them apart. The
+ * hues are picked for that job (see the `--bench-*` tokens), and each line is
+ * named beside its swatch in the toggles and in the tooltip.
  */
-const BENCHMARK_STYLE: Record<BenchmarkId, { stroke: string; dash: string }> = {
-  btc: { stroke: "var(--color-bench-btc)", dash: "6 3" },
-  spx: { stroke: "var(--color-bench-spx)", dash: "2 3" },
-  ndx: { stroke: "var(--color-bench-ndx)", dash: "10 3 2 3" },
+const BENCHMARK_DASH = "6 3";
+
+const BENCHMARK_STROKE: Record<BenchmarkId, string> = {
+  btc: "var(--color-bench-btc)",
+  spx: "var(--color-bench-spx)",
+  ndx: "var(--color-bench-ndx)",
 };
 
 type Point = { t: number; v: number; usd: number };
@@ -112,7 +115,7 @@ function ChartTooltip({
             <span
               aria-hidden="true"
               className="size-1.5 rounded-full"
-              style={{ background: BENCHMARK_STYLE[bench.id].stroke }}
+              style={{ background: BENCHMARK_STROKE[bench.id] }}
             />
             <span>{bench.name}</span>
             <span className="num ml-auto pl-2">{smallCents(money(value))}</span>
@@ -152,7 +155,6 @@ function BenchmarkChip({
   pct: number | null;
   onToggle: () => void;
 }) {
-  const style = BENCHMARK_STYLE[meta.id];
   const unavailable = active && !pending && pct == null;
   return (
     <button
@@ -180,9 +182,9 @@ function BenchmarkChip({
           y1="1"
           x2="18"
           y2="1"
-          stroke={style.stroke}
+          stroke={BENCHMARK_STROKE[meta.id]}
           strokeWidth="2"
-          strokeDasharray={style.dash}
+          strokeDasharray={BENCHMARK_DASH}
         />
       </svg>
       {meta.label}
@@ -549,14 +551,14 @@ export function EquityChart({
                   key={meta.id}
                   type="monotone"
                   dataKey={meta.id}
-                  stroke={BENCHMARK_STYLE[meta.id].stroke}
+                  stroke={BENCHMARK_STROKE[meta.id]}
                   strokeWidth={1.5}
-                  strokeDasharray={BENCHMARK_STYLE[meta.id].dash}
+                  strokeDasharray={BENCHMARK_DASH}
                   dot={false}
                   activeDot={{
                     r: 3,
                     strokeWidth: 0,
-                    fill: BENCHMARK_STYLE[meta.id].stroke,
+                    fill: BENCHMARK_STROKE[meta.id],
                   }}
                   connectNulls={false}
                   isAnimationActive={false}

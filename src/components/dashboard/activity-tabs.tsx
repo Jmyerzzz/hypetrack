@@ -115,6 +115,32 @@ function PerformanceStrip({
       ),
     },
     {
+      label: "Avg R:R",
+      hint: "Average win ÷ average loss — the reward this account takes per unit of risk. Hyperliquid records no stop for a closed trade, so one R is sized from the outcomes: it is the average losing trade (shown beside this as “Avg loss”).",
+      node: ratio(s.avgRiskReward),
+    },
+    {
+      label: "Total R",
+      hint: "Closed-trade net PnL counted in R — how many average losses’ worth of profit the window made. Flat and still-open trades are excluded.",
+      node:
+        s.totalR == null ? (
+          <span className="text-ink3">—</span>
+        ) : (
+          <span
+            className={`num ${
+              s.totalR > 0.05
+                ? "text-upt"
+                : s.totalR < -0.05
+                  ? "text-downt"
+                  : "text-ink2"
+            }`}
+          >
+            {s.totalR > 0 ? "+" : s.totalR < 0 ? "−" : ""}
+            {Math.abs(s.totalR).toFixed(1)}R
+          </span>
+        ),
+    },
+    {
       label: "Expectancy / trade",
       node:
         s.expectancy == null ? (

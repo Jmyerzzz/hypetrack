@@ -21,8 +21,10 @@ fills, and orders cover both perps and outcome markets.
   window's start and holds it, so the comparison is plotted in the chart's own
   dollars on one axis rather than on a second percentage scale; the toggle
   doubles as the legend and carries the benchmark's return over the window.
-  Each line has its own dash pattern, so the four curves stay apart for
-  colorblind readers too. Choices are remembered across sessions.
+  Every benchmark is dashed the same way — the dash means "reference", the
+  account's own solid filled curve is the subject — and the three hues are
+  picked to stay apart from each other and from the accent under simulated
+  color-vision deficiency. Choices are remembered across sessions.
 - **Risk profile** — Sharpe and Sortino (annualized from 30 days of daily perp
   PnL returns) and max drawdown of the all-time PnL curve.
 - **MFE / MAE** — each trade's maximum favorable and adverse excursion,
@@ -34,8 +36,11 @@ fills, and orders cover both perps and outcome markets.
   averages, max size, win/loss/flat result, duration, gross PnL, **fees paid**,
   **funding received or paid** (attributed to the trade's holding window), and
   net PnL — expandable to the individual fills with explorer links.
-- **Trade analytics** — win rate, profit factor, expectancy, average win/loss,
-  largest win/loss, median hold time, long vs short split, net PnL by coin.
+- **Trade analytics** — win rate, profit factor, expectancy, **average R:R and
+  total R**, average win/loss, largest win/loss, median hold time, long vs
+  short split, net PnL by coin. Hyperliquid records no stop for a closed trade,
+  so one R is sized from the outcomes — it's the account's average losing trade
+  — and total R counts closed-trade net PnL in those units.
 - **Open positions** — size, entry/mark/liquidation price, leverage, margin,
   funding since open, unrealized PnL and ROE — plus an account-risk breakdown
   (margin used, maintenance margin, account leverage).
