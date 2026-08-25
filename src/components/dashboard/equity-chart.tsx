@@ -146,6 +146,7 @@ function BenchmarkChip({
   active,
   pending,
   pct,
+  reason,
   onToggle,
 }: {
   meta: BenchmarkMeta;
@@ -153,6 +154,8 @@ function BenchmarkChip({
   pending: boolean;
   /** Return over the plotted window; null = no prices for it. */
   pct: number | null;
+  /** What the upstreams said, when there are no prices. */
+  reason: string | null;
   onToggle: () => void;
 }) {
   const unavailable = active && !pending && pct == null;
@@ -163,7 +166,7 @@ function BenchmarkChip({
       aria-pressed={active}
       title={
         unavailable
-          ? `${meta.name} prices are unavailable right now`
+          ? `${meta.name} prices are unavailable right now${reason ? ` — ${reason}` : ""}`
           : `${meta.name} — the same starting equity, bought and held (${meta.source})`
       }
       className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors max-sm:py-1.5 ${
@@ -284,11 +287,10 @@ export function EquityChart({
   // benchmark still reports how it did over the window when the account had no
   // starting capital to mark against it.
   const active = useMemo(() => {
-    const points = new Map(
-      (benchmarks.data?.series ?? []).map((s) => [s.id, s.points]),
-    );
+    const byId = new Map((benchmarks.data?.series ?? []).map((s) => [s.id, s]));
     return BENCHMARKS.filter((b) => selected.includes(b.id)).map((meta) => {
-      const prices = points.get(meta.id) ?? [];
+      const series = byId.get(meta.id);
+      const prices = series?.points ?? [];
       const curve: BenchmarkCurve | null =
         stake == null || prices.length === 0
           ? null
@@ -297,11 +299,43 @@ export function EquityChart({
         meta,
         curve,
         pct: prices.length === 0 ? null : benchmarkReturn(prices, times),
+        source: series?.source ?? null,
+        error: series?.error ?? null,
       };
     });
   }, [benchmarks.data, selected, times, stake, isPnl]);
 
   const drawn = useMemo(() => active.filter((b) => b.curve != null), [active]);
+
+  /**
+   * The benchmarks that came back without prices, and what the upstreams said.
+   * A chip can only show "n/a" and explain itself on hover, which a phone
+   * doesn't have — so the footnote carries the reason.
+   */
+  const unavailable = useMemo(() => {
+    if (benchmarks.isFetching || benchmarks.isError) return null;
+    const missing = active.filter((b) => b.pct == null);
+    if (missing.length === 0) return null;
+    const names = missing.map((b) => b.meta.name);
+    return {
+      names:
+        names.length > 1
+          ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+          : names[0],
+      // Both indices usually fail identically; say it once when they do.
+      reasons: [...new Set(missing.map((b) => b.error).filter(Boolean))],
+    };
+  }, [active, benchmarks.isFetching, benchmarks.isError]);
+
+  /**
+   * Who actually answered. Worth naming rather than crediting "public index
+   * closes" generically: only some upstreams carry intraday bars, so the
+   * source is what tells a reader whether a flat 24H index line is a bug.
+   */
+  const sources = useMemo(
+    () => [...new Set(active.map((b) => b.source).filter(Boolean))],
+    [active],
+  );
 
   const rows: Row[] = useMemo(() => {
     if (drawn.length === 0) return data;
@@ -383,16 +417,20 @@ export function EquityChart({
             be read against, off until asked for. */}
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] text-ink3">vs</span>
-          {BENCHMARKS.map((meta) => (
-            <BenchmarkChip
-              key={meta.id}
-              meta={meta}
-              active={selected.includes(meta.id)}
-              pending={benchmarks.isFetching}
-              pct={active.find((b) => b.meta.id === meta.id)?.pct ?? null}
-              onToggle={() => toggleBenchmark(meta.id)}
-            />
-          ))}
+          {BENCHMARKS.map((meta) => {
+            const state = active.find((b) => b.meta.id === meta.id);
+            return (
+              <BenchmarkChip
+                key={meta.id}
+                meta={meta}
+                active={selected.includes(meta.id)}
+                pending={benchmarks.isFetching}
+                pct={state?.pct ?? null}
+                reason={state?.error ?? null}
+                onToggle={() => toggleBenchmark(meta.id)}
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -581,7 +619,21 @@ export function EquityChart({
             : "Benchmarks buy the account’s equity at the window’s start and hold it."}{" "}
           {benchmarks.isError
             ? "Prices are unavailable right now."
-            : "Prices from Hyperliquid (BTC) and public index closes."}
+            : sources.length > 0
+              ? `Prices from ${sources.join(", ")}.`
+              : "Prices from Hyperliquid (BTC) and public index closes."}
+          {unavailable && (
+            <>
+              {" "}
+              <span className="text-downt">
+                {unavailable.names} prices are unavailable right now
+                {unavailable.reasons.length > 0
+                  ? ` (${unavailable.reasons.join("; ")})`
+                  : ""}
+                .
+              </span>
+            </>
+          )}
         </p>
       )}
     </section>

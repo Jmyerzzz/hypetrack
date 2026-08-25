@@ -218,11 +218,16 @@ export async function fetchCandles(
   interval: string,
   startTime: number,
   endTime: number,
+  /** Tighter limits for callers on a budget, e.g. a chart overlay. */
+  opts?: { timeoutMs?: number; retries?: number },
 ): Promise<HlCandle[]> {
-  return hlInfo<HlCandle[]>({
-    type: "candleSnapshot",
-    req: { coin, interval, startTime, endTime },
-  });
+  return hlInfo<HlCandle[]>(
+    {
+      type: "candleSnapshot",
+      req: { coin, interval, startTime, endTime },
+    },
+    opts,
+  );
 }
 
 export async function fetchOpenOrders(user: string): Promise<HlOpenOrder[]> {

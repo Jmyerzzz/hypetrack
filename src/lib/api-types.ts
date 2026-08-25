@@ -163,13 +163,17 @@ export type OverviewPayload = {
 
 /**
  * One benchmark's closing prices over a window. `points` empty (and `source`
- * null) means the quote upstream didn't answer — the chart dims that toggle
- * rather than plotting a line it can't draw.
+ * null) means no quote upstream answered — the chart dims that toggle rather
+ * than plotting a line it can't draw, and shows `error`, which names what each
+ * upstream said, so an unavailable benchmark is diagnosable from the page.
  */
 export type BenchmarkSeriesView = {
   id: BenchmarkId;
   points: BenchmarkPoint[];
+  /** Which upstream the prices came from; null when none answered. */
   source: string | null;
+  /** Why the prices are missing; null when they aren't. */
+  error: string | null;
 };
 
 /** Market prices for the benchmark overlays — global, not account-specific. */
