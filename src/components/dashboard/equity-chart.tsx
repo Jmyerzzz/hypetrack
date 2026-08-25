@@ -5,6 +5,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Line,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -13,7 +14,17 @@ import {
 } from "recharts";
 import { EmptyState, Pnl, SegmentedControl, smallCents } from "@/components/ui";
 import type { PortfolioPoint, PortfolioSeries } from "@/lib/api-types";
-import { fmtCompact, fmtTime } from "@/lib/format";
+import {
+  BENCHMARKS,
+  type BenchmarkCurve,
+  type BenchmarkId,
+  type BenchmarkMeta,
+  type BenchmarkPeriod,
+  benchmarkCurve,
+  benchmarkReturn,
+} from "@/lib/benchmarks";
+import { fmtCompact, fmtPct, fmtTime } from "@/lib/format";
+import { useBenchmarks, useBenchmarkToggles } from "@/lib/hooks";
 import { useMoney } from "@/lib/privacy";
 import { returnOnAvgEquity } from "@/lib/risk";
 import { type TimeWindow, windowBounds, windowLabel } from "@/lib/trades";
@@ -26,24 +37,58 @@ const DAY_MS = 86_400_000;
  *  share the threshold so they can't disagree about showing one. */
 const YEAR_NEEDED_MS = 180 * DAY_MS;
 
+/**
+ * Below this the account had no meaningful capital at the window's start, so
+ * there is nothing to have bought a benchmark with and the overlay is dropped.
+ */
+const MIN_STAKE_USD = 1;
+
+/**
+ * One dash for every benchmark: what the pattern says is "reference, not this
+ * account" — the account's own curve is the only solid, filled one — so the
+ * three references wear it identically and hue alone tells them apart. The
+ * hues are picked for that job (see the `--bench-*` tokens), and each line is
+ * named beside its swatch in the toggles and in the tooltip.
+ */
+const BENCHMARK_DASH = "6 3";
+
+const BENCHMARK_STROKE: Record<BenchmarkId, string> = {
+  btc: "var(--color-bench-btc)",
+  spx: "var(--color-bench-spx)",
+  ndx: "var(--color-bench-ndx)",
+};
+
 type Point = { t: number; v: number; usd: number };
+
+/** A plotted point plus whatever benchmark values line up with it. */
+type Row = Point & Partial<Record<BenchmarkId, number | null>>;
 
 function ChartTooltip({
   active,
   payload,
   metric,
   withYear,
+  benchmarks,
+  stake,
 }: {
   active?: boolean;
-  payload?: { payload: Point }[];
+  payload?: { payload: Row }[];
   metric: Metric;
   withYear: boolean;
+  /** Benchmarks currently drawn, in the fixed palette order. */
+  benchmarks: BenchmarkMeta[];
+  stake: number | null;
 }) {
-  const { fmtUsd } = useMoney();
+  const { fmtUsd, fmtUsdSigned } = useMoney();
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
+  const money = metric === "pnl" ? fmtUsdSigned : fmtUsd;
   return (
-    <div className="rounded-lg border border-edge2 bg-panel2 px-3 py-2 shadow-xl">
+    <div
+      className={`rounded-lg border border-edge2 bg-panel2 px-3 py-2 shadow-xl ${
+        benchmarks.length > 0 ? "min-w-[190px]" : ""
+      }`}
+    >
       <p className="num text-sm font-semibold text-ink">
         {metric === "pnl" ? (
           <Pnl value={point.usd} />
@@ -51,10 +96,104 @@ function ChartTooltip({
           smallCents(fmtUsd(point.usd))
         )}
       </p>
+      {benchmarks.map((bench) => {
+        const value = point[bench.id];
+        if (value == null) return null;
+        // The stake is what bought the benchmark, so its return falls straight
+        // out of the plotted value — no second lookup into the price series.
+        const pct =
+          stake == null
+            ? null
+            : metric === "pnl"
+              ? value / stake
+              : value / stake - 1;
+        return (
+          <p
+            key={bench.id}
+            className="mt-1 flex items-center gap-1.5 text-[11px] text-ink2"
+          >
+            <span
+              aria-hidden="true"
+              className="size-1.5 rounded-full"
+              style={{ background: BENCHMARK_STROKE[bench.id] }}
+            />
+            <span>{bench.name}</span>
+            <span className="num ml-auto pl-2">{smallCents(money(value))}</span>
+            {pct != null && (
+              <span className="num w-14 text-right text-ink3">
+                {fmtPct(pct, { signed: true })}
+              </span>
+            )}
+          </p>
+        );
+      })}
       <p className="mt-0.5 text-[11px] text-ink3">
         {fmtTime(point.t, { withYear })}
       </p>
     </div>
+  );
+}
+
+/**
+ * One benchmark's on/off control, doubling as the chart's legend: the swatch
+ * carries the exact stroke and dash the line is drawn with, so identity never
+ * depends on matching two colors across the card. An active benchmark shows
+ * its return over the window, which stays meaningful even when the overlay
+ * itself can't be drawn.
+ */
+function BenchmarkChip({
+  meta,
+  active,
+  pending,
+  pct,
+  onToggle,
+}: {
+  meta: BenchmarkMeta;
+  active: boolean;
+  pending: boolean;
+  /** Return over the plotted window; null = no prices for it. */
+  pct: number | null;
+  onToggle: () => void;
+}) {
+  const unavailable = active && !pending && pct == null;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={active}
+      title={
+        unavailable
+          ? `${meta.name} prices are unavailable right now`
+          : `${meta.name} — the same starting equity, bought and held (${meta.source})`
+      }
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors max-sm:py-1.5 ${
+        active
+          ? "border-edge2 bg-panel2 text-ink"
+          : "border-edge text-ink3 hover:text-ink2"
+      }`}
+    >
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 18 2"
+        className={`h-0.5 w-[18px] shrink-0 ${active ? "" : "opacity-60"}`}
+      >
+        <line
+          x1="0"
+          y1="1"
+          x2="18"
+          y2="1"
+          stroke={BENCHMARK_STROKE[meta.id]}
+          strokeWidth="2"
+          strokeDasharray={BENCHMARK_DASH}
+        />
+      </svg>
+      {meta.label}
+      {active && (
+        <span className="num text-ink2">
+          {pending ? "…" : pct == null ? "n/a" : fmtPct(pct, { signed: true })}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -67,6 +206,7 @@ export function EquityChart({
 }) {
   const { fmtUsd, hidden } = useMoney();
   const [metric, setMetric] = useState<Metric>("equity");
+  const [selected, toggleBenchmark] = useBenchmarkToggles();
 
   // A relative preset has a portfolio bucket sampled for exactly that span; a
   // custom range is cut out of the all-time series, which is sampled coarsely
@@ -115,6 +255,63 @@ export function EquityChart({
     });
   }, [series, isPnl]);
 
+  // Benchmark prices follow the same buckets as the portfolio series, so each
+  // window gets a sampling that suits it; a custom range rides on the all-time
+  // prices, exactly as its account series does.
+  const benchPeriod: BenchmarkPeriod =
+    timeWindow.preset === "custom" || timeWindow.preset === "allTime"
+      ? "allTime"
+      : timeWindow.preset;
+  const benchmarks = useBenchmarks(benchPeriod, selected.length > 0);
+
+  const times = useMemo(() => data.map((p) => p.t), [data]);
+
+  /**
+   * What the comparison buys: the account's own equity when the window opens.
+   * Read off the equity series in both metrics — the PnL curve is rebased to
+   * zero and can't say how much capital was on the table.
+   */
+  const stake = useMemo(() => {
+    if (!series) return null;
+    const equity = series.combinedValue.length
+      ? series.combinedValue
+      : series.accountValue;
+    const start = equity[0]?.v ?? 0;
+    return start >= MIN_STAKE_USD ? start : null;
+  }, [series]);
+
+  // Returns are computed from the prices rather than from the drawn line, so a
+  // benchmark still reports how it did over the window when the account had no
+  // starting capital to mark against it.
+  const active = useMemo(() => {
+    const points = new Map(
+      (benchmarks.data?.series ?? []).map((s) => [s.id, s.points]),
+    );
+    return BENCHMARKS.filter((b) => selected.includes(b.id)).map((meta) => {
+      const prices = points.get(meta.id) ?? [];
+      const curve: BenchmarkCurve | null =
+        stake == null || prices.length === 0
+          ? null
+          : benchmarkCurve(prices, times, stake, isPnl ? "pnl" : "value");
+      return {
+        meta,
+        curve,
+        pct: prices.length === 0 ? null : benchmarkReturn(prices, times),
+      };
+    });
+  }, [benchmarks.data, selected, times, stake, isPnl]);
+
+  const drawn = useMemo(() => active.filter((b) => b.curve != null), [active]);
+
+  const rows: Row[] = useMemo(() => {
+    if (drawn.length === 0) return data;
+    return data.map((point, i) => {
+      const row: Row = { ...point };
+      for (const { meta, curve } of drawn) row[meta.id] = curve?.values[i];
+      return row;
+    });
+  }, [data, drawn]);
+
   const { min, max, last } = useMemo(() => {
     if (data.length === 0) return { min: 0, max: 0, last: data[0] };
     let lo = Number.POSITIVE_INFINITY;
@@ -126,7 +323,9 @@ export function EquityChart({
     return { min: lo, max: hi, last: data[data.length - 1] };
   }, [data]);
 
-  // Where zero sits inside [max…min], for the green/red gradient split.
+  // Where zero sits inside [max…min], for the green/red gradient split. The
+  // benchmark lines ride on their own scale-free colors, so they don't enter
+  // into it even when a comparison runs further into profit than the account.
   const zeroOffset = max <= 0 ? 0 : min >= 0 ? 1 : max / (max - min);
 
   const hasData = data.length > 1;
@@ -180,6 +379,21 @@ export function EquityChart({
           value={metric}
           onChange={setMetric}
         />
+        {/* Toggles and legend in one: three references the account curve can
+            be read against, off until asked for. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-ink3">vs</span>
+          {BENCHMARKS.map((meta) => (
+            <BenchmarkChip
+              key={meta.id}
+              meta={meta}
+              active={selected.includes(meta.id)}
+              pending={benchmarks.isFetching}
+              pct={active.find((b) => b.meta.id === meta.id)?.pct ?? null}
+              onToggle={() => toggleBenchmark(meta.id)}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -209,7 +423,7 @@ export function EquityChart({
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
-              data={data}
+              data={rows}
               margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
             >
               <defs>
@@ -304,6 +518,8 @@ export function EquityChart({
                   <ChartTooltip
                     metric={metric}
                     withYear={spanMs > YEAR_NEEDED_MS}
+                    benchmarks={drawn.map((b) => b.meta)}
+                    stake={stake}
                   />
                 }
                 cursor={{ stroke: "var(--chart-cursor)", strokeWidth: 1 }}
@@ -327,6 +543,27 @@ export function EquityChart({
                 }}
                 isAnimationActive={false}
               />
+              {/* Drawn after the account's area so the references sit over the
+                  fill rather than under it; thinner and unfilled so the
+                  account curve stays the subject. */}
+              {drawn.map(({ meta }) => (
+                <Line
+                  key={meta.id}
+                  type="monotone"
+                  dataKey={meta.id}
+                  stroke={BENCHMARK_STROKE[meta.id]}
+                  strokeWidth={1.5}
+                  strokeDasharray={BENCHMARK_DASH}
+                  dot={false}
+                  activeDot={{
+                    r: 3,
+                    strokeWidth: 0,
+                    fill: BENCHMARK_STROKE[meta.id],
+                  }}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                />
+              ))}
             </AreaChart>
           </ResponsiveContainer>
         ) : (
@@ -336,6 +573,17 @@ export function EquityChart({
           />
         )}
       </div>
+
+      {selected.length > 0 && hasData && (
+        <p className="mt-2 text-[11px] text-ink3">
+          {stake == null
+            ? "Benchmark lines need equity at the window’s start to buy in with — returns only for this window."
+            : "Benchmarks buy the account’s equity at the window’s start and hold it."}{" "}
+          {benchmarks.isError
+            ? "Prices are unavailable right now."
+            : "Prices from Hyperliquid (BTC) and public index closes."}
+        </p>
+      )}
     </section>
   );
 }

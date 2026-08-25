@@ -1,3 +1,8 @@
+import type {
+  BenchmarkId,
+  BenchmarkPeriod,
+  BenchmarkPoint,
+} from "./benchmarks";
 import type { OutcomeMarketView } from "./hyperliquid/outcome";
 import type { TradeStats } from "./stats";
 import type { Trade } from "./trades";
@@ -154,6 +159,24 @@ export type OverviewPayload = {
   pnlSummary: PnlSummaryEntry[];
   /** Lifetime perp traded volume as reported by Hyperliquid. */
   allTimeVolume: number;
+};
+
+/**
+ * One benchmark's closing prices over a window. `points` empty (and `source`
+ * null) means the quote upstream didn't answer — the chart dims that toggle
+ * rather than plotting a line it can't draw.
+ */
+export type BenchmarkSeriesView = {
+  id: BenchmarkId;
+  points: BenchmarkPoint[];
+  source: string | null;
+};
+
+/** Market prices for the benchmark overlays — global, not account-specific. */
+export type BenchmarksPayload = {
+  period: BenchmarkPeriod;
+  fetchedAt: number;
+  series: BenchmarkSeriesView[];
 };
 
 export type SubAccountView = {

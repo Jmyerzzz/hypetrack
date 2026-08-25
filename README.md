@@ -16,6 +16,15 @@ fills, and orders cover both perps and outcome markets.
   against peak capital deployed (robust to deposits and withdrawals).
 - **Equity & PnL charts** — perp equity and cumulative PnL curves per
   timeframe, with profit/loss split coloring around zero.
+- **Benchmark overlays** — toggle **BTC**, the **S&P 500** and the **Nasdaq
+  100** onto either curve. Each one buys the account's equity as of the
+  window's start and holds it, so the comparison is plotted in the chart's own
+  dollars on one axis rather than on a second percentage scale; the toggle
+  doubles as the legend and carries the benchmark's return over the window.
+  Every benchmark is dashed the same way — the dash means "reference", the
+  account's own solid filled curve is the subject — and the three hues are
+  picked to stay apart from each other and from the accent under simulated
+  color-vision deficiency. Choices are remembered across sessions.
 - **Risk profile** — Sharpe and Sortino (annualized from 30 days of daily perp
   PnL returns) and max drawdown of the all-time PnL curve.
 - **MFE / MAE** — each trade's maximum favorable and adverse excursion,
@@ -27,8 +36,11 @@ fills, and orders cover both perps and outcome markets.
   averages, max size, win/loss/flat result, duration, gross PnL, **fees paid**,
   **funding received or paid** (attributed to the trade's holding window), and
   net PnL — expandable to the individual fills with explorer links.
-- **Trade analytics** — win rate, profit factor, expectancy, average win/loss,
-  largest win/loss, median hold time, long vs short split, net PnL by coin.
+- **Trade analytics** — win rate, profit factor, expectancy, **average R:R and
+  total R**, average win/loss, largest win/loss, median hold time, long vs
+  short split, net PnL by coin. Hyperliquid records no stop for a closed trade,
+  so one R is sized from the outcomes — it's the account's average losing trade
+  — and total R counts closed-trade net PnL in those units.
 - **Open positions** — size, entry/mark/liquidation price, leverage, margin,
   funding since open, unrealized PnL and ROE — plus an account-risk breakdown
   (margin used, maintenance margin, account leverage).
@@ -83,6 +95,13 @@ Everything is served from two Next.js route handlers that talk to
 - `GET /api/overview/[address]` — clearinghouse state (positions, margin),
   perp-account portfolio equity/PnL history, and open perp orders. Cached ~30s,
   auto-refreshed by the client.
+- `GET /api/benchmarks/[period]` — benchmark closes for one chart window
+  (`day` / `week` / `month` / `allTime`). BTC comes from Hyperliquid's own
+  `candleSnapshot`; the two equity indices have no Hyperliquid market, so they
+  come from a public quote endpoint (Yahoo Finance, with Stooq's daily CSV
+  behind it). Global market data, not account data — it is cached per window
+  and per benchmark, fetched only once a benchmark is switched on, and a
+  benchmark whose upstream is down simply drops out of the chart.
 - `GET /api/activity/[address]` — paginates `userFillsByTime` (up to 30k
   fills, filtered to perp fills), `userFunding`, and
   `userNonFundingLedgerUpdates`, then runs the trade engine
@@ -117,4 +136,8 @@ Geist Sans/Mono.
 ## Notes
 
 - Data comes from Hyperliquid's public API; prices and PnL are indicative.
+- Benchmark comparisons are buy-and-hold from the window's start. An account
+  that deposits or withdraws mid-window moves for reasons the benchmark can't;
+  the trading PnL and return beside the equity figure are the deposit-neutral
+  read.
 - Not affiliated with Hyperliquid. Nothing here is financial advice.

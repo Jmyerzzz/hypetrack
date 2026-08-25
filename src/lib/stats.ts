@@ -41,6 +41,15 @@ export type TradeSummary = {
   avgLoss: number | null;
   profitFactor: number | null;
   expectancy: number | null;
+  /**
+   * Average reward-to-risk: the average win over the average loss. Hyperliquid
+   * records no stop for a closed trade, so the risk actually taken has to be
+   * read off the outcomes — the average losing trade is what one R is worth
+   * for this account. Null until there is a losing trade to size it with.
+   */
+  avgRiskReward: number | null;
+  /** Closed-trade net PnL in those R units; null on the same condition. */
+  totalR: number | null;
   largestWin: { coin: string; netPnl: number } | null;
   largestLoss: { coin: string; netPnl: number } | null;
   avgDurationMs: number | null;
@@ -163,6 +172,13 @@ export function summarizeTrades(trades: Trade[]): TradeSummary {
   const decided = wins + losses;
   const totalNetPnl = trades.reduce((a, t) => a + t.netPnl, 0);
 
+  // One R = the average losing trade. Sized off losses rather than off every
+  // closed trade because R is meant to be the unit of risk, not of outcome:
+  // an account that wins often would otherwise shrink its own yardstick.
+  // `winSum + lossSum` is the decided-trade PnL — flat trades round to zero
+  // and open ones aren't settled, so neither belongs in an R tally.
+  const riskUnit = losses > 0 ? Math.abs(lossSum / losses) : 0;
+
   const withExcursion = closed.filter((t) => t.excursion != null);
   const avgMfePct = withExcursion.length
     ? withExcursion.reduce((a, t) => a + (t.excursion?.mfePct ?? 0), 0) /
@@ -188,6 +204,8 @@ export function summarizeTrades(trades: Trade[]): TradeSummary {
     avgLoss: losses > 0 ? lossSum / losses : null,
     profitFactor: lossSum < 0 ? winSum / -lossSum : null,
     expectancy: decided > 0 ? (winSum + lossSum) / decided : null,
+    avgRiskReward: riskUnit > 0 && wins > 0 ? winSum / wins / riskUnit : null,
+    totalR: riskUnit > 0 ? (winSum + lossSum) / riskUnit : null,
     largestWin,
     largestLoss,
     avgDurationMs,

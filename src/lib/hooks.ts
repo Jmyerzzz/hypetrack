@@ -1,12 +1,18 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type {
   ActivityPayload,
+  BenchmarksPayload,
   OverviewPayload,
   SubAccountsPayload,
 } from "./api-types";
+import {
+  type BenchmarkId,
+  type BenchmarkPeriod,
+  isBenchmarkId,
+} from "./benchmarks";
 
 export type ViewMode = "table" | "cards";
 
@@ -95,6 +101,75 @@ export function useSubAccounts(address: string) {
     // A failure here only hides the switcher; don't hold the page hostage.
     retry: 1,
   });
+}
+
+/**
+ * Benchmark prices for one window. Global market data, so the query key
+ * carries no address and every account on the page shares one fetch; it stays
+ * disabled until a benchmark is actually switched on, so a reader who never
+ * uses the comparison never pays for it. A failure only dims the chips.
+ */
+export function useBenchmarks(period: BenchmarkPeriod, enabled: boolean) {
+  return useQuery({
+    queryKey: ["benchmarks", period],
+    queryFn: () => getJson<BenchmarksPayload>(`/api/benchmarks/${period}`),
+    staleTime: 60_000,
+    enabled,
+    retry: 1,
+  });
+}
+
+const BENCHMARK_KEY = "hypesleuth:benchmarks";
+
+function readBenchmarks(): BenchmarkId[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed: unknown = JSON.parse(
+      window.localStorage.getItem(BENCHMARK_KEY) ?? "[]",
+    );
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (x): x is BenchmarkId => typeof x === "string" && isBenchmarkId(x),
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Which benchmarks the chart is comparing against. Off by default — the
+ * account's own curve is the subject — but a reader who turns one on is
+ * comparing, so the choice sticks across sessions like the view and privacy
+ * toggles. Read lazily on mount rather than during render so the server and
+ * the first client pass agree.
+ */
+export function useBenchmarkToggles(): [
+  BenchmarkId[],
+  (id: BenchmarkId) => void,
+] {
+  const [selected, setSelected] = useState<BenchmarkId[]>([]);
+
+  useEffect(() => {
+    const stored = readBenchmarks();
+    if (stored.length > 0) setSelected(stored);
+  }, []);
+
+  const toggle = useCallback((id: BenchmarkId) => {
+    setSelected((current) => {
+      const next = current.includes(id)
+        ? current.filter((x) => x !== id)
+        : [...current, id];
+      try {
+        window.localStorage.setItem(BENCHMARK_KEY, JSON.stringify(next));
+      } catch {
+        /* private mode */
+      }
+      return next;
+    });
+  }, []);
+
+  return [selected, toggle];
 }
 
 const RECENT_KEY = "hypesleuth:recent";

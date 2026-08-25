@@ -24,6 +24,16 @@
   --down: #e5484d;
   --downt: #f0666b;
   --warn: #f5a524;
+  /* Benchmark overlays. Every benchmark line is dashed the same way, so hue
+     is what tells them apart and the set is validated on the all-pairs list
+     (any two can cross anywhere) together with the accent the account curve
+     wears: worst pair CVD ΔE 6.9, normal-vision ΔE 15.1, all ≥ 3:1 on this
+     surface. The CVD figure sits in the floor band, which is why every line
+     is also named — with its swatch — in the toggles above the chart and in
+     the tooltip. */
+  --bench-btc: #e56731;
+  --bench-spx: #3295f6;
+  --bench-ndx: #bc6cd5;
   --chart-cursor: rgba(255, 255, 255, 0.18);
   --scrollbar: rgba(255, 255, 255, 0.12);
   --dot: rgba(151, 252, 228, 0.05);
@@ -50,6 +60,11 @@
   --down: #b91c1c;
   --downt: #a31a1f;
   --warn: #b45309;
+  /* The same three hues stepped for the light surface — all-pairs CVD ΔE 7.0,
+     normal-vision ΔE 16.3, all ≥ 3:1 on white. */
+  --bench-btc: #c94e0c;
+  --bench-spx: #0a7bda;
+  --bench-ndx: #a353ba;
   --chart-cursor: rgba(20, 38, 43, 0.28);
   --scrollbar: rgba(20, 38, 43, 0.2);
   --dot: rgba(13, 148, 136, 0.1);
@@ -75,6 +90,9 @@
   --color-down: var(--down);
   --color-downt: var(--downt);
   --color-warn: var(--warn);
+  --color-bench-btc: var(--bench-btc);
+  --color-bench-spx: var(--bench-spx);
+  --color-bench-ndx: var(--bench-ndx);
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
