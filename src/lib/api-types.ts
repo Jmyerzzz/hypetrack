@@ -1,3 +1,4 @@
+import type { RowAccount } from "./accounts";
 import type {
   BenchmarkId,
   BenchmarkPeriod,
@@ -78,6 +79,7 @@ export type PositionView = {
    * first. Main-DEX only — builder-DEX order books aren't fetched.
    */
   triggers: PositionTriggerView[];
+  account?: RowAccount;
 };
 
 /**
@@ -103,6 +105,7 @@ export type OutcomePositionView = {
   roe: number | null;
   /** What the position pays if this side wins ($1 per token). */
   payoutIfWon: number;
+  account?: RowAccount;
 };
 
 export type OrderView = {
@@ -120,6 +123,7 @@ export type OrderView = {
   triggerCondition: string;
   isPositionTpsl: boolean;
   timestamp: number;
+  account?: RowAccount;
 };
 
 export type SpotBalanceView = {
@@ -216,6 +220,7 @@ export type FillView = {
   crossed: boolean;
   twap: boolean;
   liquidation: boolean;
+  account?: RowAccount;
 };
 
 export type FundingView = {
@@ -224,6 +229,7 @@ export type FundingView = {
   usdc: number;
   rate: number;
   szi: number;
+  account?: RowAccount;
 };
 
 export type TransferView = {
@@ -234,6 +240,14 @@ export type TransferView = {
   amountUsd: number | null;
   detail: string | null;
   hash: string;
+  /**
+   * The other address on a peer-to-peer movement (send, internal or
+   * sub-account transfer), lowercased; null for bridge deposits/withdrawals
+   * and anything else with no counterparty. The all-accounts merge reads it to
+   * tell capital entering the set apart from capital shuffled inside it.
+   */
+  counterparty: string | null;
+  account?: RowAccount;
 };
 
 export type ActivityCoverage = {

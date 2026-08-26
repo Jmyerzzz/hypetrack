@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  AccountTag,
   CardField,
   CardList,
   DataCard,
@@ -12,6 +13,7 @@ import {
   Th,
   ViewToggle,
 } from "@/components/ui";
+import { rowKey } from "@/lib/accounts";
 import type { TransferView } from "@/lib/api-types";
 import { fmtTime } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
@@ -38,6 +40,11 @@ function TransferCard({ t }: { t: TransferView }) {
           <p className="num mt-1 text-[11px] text-ink3">
             {fmtTime(t.time, { withYear: true })}
           </p>
+          {t.account && (
+            <p className="mt-1">
+              <AccountTag account={t.account} />
+            </p>
+          )}
         </div>
         <span
           className={`num shrink-0 text-[15px] font-semibold ${amountTone(t.amountUsd)}`}
@@ -84,7 +91,9 @@ export function TransfersTable({
   }
   const shown = transfers.slice(0, visible);
   const key = (t: TransferView) =>
-    `${t.time}:${t.hash}:${t.type}:${t.amountUsd ?? ""}`;
+    rowKey(t.account, `${t.time}:${t.hash}:${t.type}:${t.amountUsd ?? ""}`);
+  // Set only in the all-accounts view; a single account's rows carry no tag.
+  const tagged = transfers.some((t) => t.account);
 
   return (
     <div>
@@ -112,6 +121,7 @@ export function TransfersTable({
           <table className="w-full min-w-[680px] border-collapse">
             <thead>
               <tr className="border-b border-edge">
+                {tagged && <Th align="left">Account</Th>}
                 <Th align="left">Time</Th>
                 <Th align="left">Type</Th>
                 <Th>Amount</Th>
@@ -125,6 +135,11 @@ export function TransfersTable({
                   key={key(t)}
                   className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/40"
                 >
+                  {tagged && (
+                    <Td align="left">
+                      <AccountTag account={t.account} />
+                    </Td>
+                  )}
                   <Td align="left" className="num text-ink2">
                     {fmtTime(t.time, { withYear: true })}
                   </Td>

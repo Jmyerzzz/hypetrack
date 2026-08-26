@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AccountTag,
   CardField,
   CardList,
   DataCard,
@@ -11,6 +12,7 @@ import {
   Th,
   ViewToggle,
 } from "@/components/ui";
+import { rowKey } from "@/lib/accounts";
 import type { OrderView, OutcomeMarketMap } from "@/lib/api-types";
 import { fmtPrice, fmtTime } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
@@ -58,6 +60,11 @@ function OrderCard({
               {o.isBuy ? "Buy" : "Sell"}
             </span>
           </p>
+          {o.account && (
+            <p className="mt-1">
+              <AccountTag account={o.account} />
+            </p>
+          )}
         </div>
         <div className="shrink-0 text-right">
           <span className="num text-[15px] font-semibold text-ink">
@@ -106,6 +113,8 @@ export function OrdersTable({
   if (!orders || orders.length === 0) {
     return <EmptyState title="No open orders" />;
   }
+  // Set only in the all-accounts view; a single account's rows carry no tag.
+  const tagged = orders.some((o) => o.account);
 
   return (
     <div>
@@ -116,7 +125,7 @@ export function OrdersTable({
       {view === "cards" ? (
         <CardList minWidth={280}>
           {orders.map((o) => (
-            <OrderCard key={o.oid} o={o} markets={markets} />
+            <OrderCard key={rowKey(o.account, o.oid)} o={o} markets={markets} />
           ))}
         </CardList>
       ) : (
@@ -124,6 +133,7 @@ export function OrdersTable({
           <table className="w-full min-w-[760px] border-collapse">
             <thead>
               <tr className="border-b border-edge">
+                {tagged && <Th align="left">Account</Th>}
                 <Th align="left">Market</Th>
                 <Th align="left">Side</Th>
                 <Th align="left">Type</Th>
@@ -136,9 +146,14 @@ export function OrdersTable({
             <tbody>
               {orders.map((o) => (
                 <tr
-                  key={o.oid}
+                  key={rowKey(o.account, o.oid)}
                   className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/40"
                 >
+                  {tagged && (
+                    <Td align="left">
+                      <AccountTag account={o.account} />
+                    </Td>
+                  )}
                   <Td align="left">
                     <MarketLabel coin={o.coin} market={markets[o.coin]} />
                   </Td>

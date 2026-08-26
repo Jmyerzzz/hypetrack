@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AccountTag,
   CardField,
   CardList,
   DataCard,
@@ -12,6 +13,7 @@ import {
   Th,
   ViewToggle,
 } from "@/components/ui";
+import { rowKey } from "@/lib/accounts";
 import type { OutcomeMarketMap, OutcomePositionView } from "@/lib/api-types";
 import { fmtPct, fmtPrice } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
@@ -44,10 +46,12 @@ function OutcomeCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1.5">
           <MarketTag coin={p.coin} market={market} />
-          {/* Row wrapper so the badge sizes to its label; stretching it is the
-              flex-column default, and min-w-0 above still truncates the name. */}
-          <span className="flex">
+          {/* Row wrapper so the badges size to their labels; stretching them is
+              the flex-column default, and min-w-0 above still truncates the
+              name. */}
+          <span className="flex flex-wrap items-center gap-1.5">
             {market && <SideBadge market={market} />}
+            <AccountTag account={p.account} />
           </span>
         </div>
         <div className="shrink-0 text-right">
@@ -108,6 +112,8 @@ export function OutcomePositions({
   positions: OutcomePositionView[];
   markets: OutcomeMarketMap;
 }) {
+  // Set only in the all-accounts view; a single account's rows carry no tag.
+  const tagged = positions.some((p) => p.account);
   const { fmtUsd, fmtSize } = useMoney();
   const [view, setView] = useViewMode();
   const totalValue = positions.reduce((a, p) => a + (p.positionValue ?? 0), 0);
@@ -134,7 +140,11 @@ export function OutcomePositions({
       {view === "cards" ? (
         <CardList minWidth={320}>
           {positions.map((p) => (
-            <OutcomeCard key={p.coin} p={p} markets={markets} />
+            <OutcomeCard
+              key={rowKey(p.account, p.coin)}
+              p={p}
+              markets={markets}
+            />
           ))}
         </CardList>
       ) : (
@@ -142,6 +152,7 @@ export function OutcomePositions({
           <table className="w-full min-w-[860px] border-collapse">
             <thead>
               <tr className="border-b border-edge">
+                {tagged && <Th align="left">Account</Th>}
                 <Th align="left">Market</Th>
                 <Th align="left">Side</Th>
                 <Th>Contracts</Th>
@@ -158,9 +169,14 @@ export function OutcomePositions({
                 const market = markets[p.coin];
                 return (
                   <tr
-                    key={p.coin}
+                    key={rowKey(p.account, p.coin)}
                     className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/50"
                   >
+                    {tagged && (
+                      <Td align="left">
+                        <AccountTag account={p.account} />
+                      </Td>
+                    )}
                     <Td align="left">
                       <MarketTag coin={p.coin} market={market} />
                     </Td>

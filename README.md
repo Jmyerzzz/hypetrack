@@ -54,6 +54,22 @@ fills, and orders cover both perps and outcome markets.
   Generated markets get decoded names (`BTC ≥ 64,715`, `BTC 63,420 – 66,009`);
   markets that already settled drop out of Hyperliquid's metadata, so they
   degrade to their outcome id rather than to a guessed name.
+- **Sub-accounts** — a master's sub-accounts each get a tab, plus an **All**
+  tab that combines them. Hyperliquid keeps every sub-account under its own
+  address and has no notion of a household, so All fetches each address and
+  adds the payloads up in the browser: equity, margin and volume sum; the
+  equity and PnL curves are summed onto one timestamp grid (an account reads
+  zero before its first sample, and holds its last value between them); trade
+  analytics combine the accounts' own figures rather than re-deriving them
+  from the capped trade list, so win rate, R and profit factor stay exact.
+  Positions, trades, fills, orders, funding and transfers are interleaved
+  rather than netted — two accounts long the same coin hold two positions,
+  with their own entries and liquidation prices — and every row carries a tag
+  naming the account it came from, with an account filter on the positions and
+  trades tables. Capital moved *between* the combined accounts is netted out of
+  deposits and withdrawals when the ledgers are complete enough to identify it.
+  One account failing to load fails the whole view rather than quietly
+  understating a total.
 - **Privacy mode** — one toggle in the header masks every dollar figure,
   position size and token balance behind `$•••`, and drops the equity chart's
   scale. Percentages, prices, durations and counts stay, so a screenshot still
@@ -102,6 +118,11 @@ Everything is served from two Next.js route handlers that talk to
   behind it). Global market data, not account data — it is cached per window
   and per benchmark, fetched only once a benchmark is switched on, and a
   benchmark whose upstream is down simply drops out of the chart.
+- `GET /api/subaccounts/[address]` — the sub-accounts owned by an address,
+  for the account switcher. Cached ~5min; the combined view fetches the
+  overview and activity routes once per address and merges them client-side
+  ([src/lib/accounts.ts](src/lib/accounts.ts)), so switching between tabs
+  re-reads the same cached payloads instead of re-fetching.
 - `GET /api/activity/[address]` — paginates `userFillsByTime` (up to 30k
   fills, filtered to perp fills), `userFunding`, and
   `userNonFundingLedgerUpdates`, then runs the trade engine

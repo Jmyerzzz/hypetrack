@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  AccountTag,
   CardField,
   CardList,
   DataCard,
@@ -14,6 +15,7 @@ import {
   Th,
   ViewToggle,
 } from "@/components/ui";
+import { rowKey } from "@/lib/accounts";
 import type { FillView, OutcomeMarketMap } from "@/lib/api-types";
 import { fmtPrice, fmtTime } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
@@ -77,6 +79,11 @@ function FillCard({ f, markets }: { f: FillView; markets: OutcomeMarketMap }) {
             <FillAction f={f} />
             <FillFlags f={f} />
           </p>
+          {f.account && (
+            <p className="mt-1">
+              <AccountTag account={f.account} />
+            </p>
+          )}
         </div>
         <div className="shrink-0 text-right">
           {f.closedPnl !== 0 ? (
@@ -133,6 +140,8 @@ export function FillsTable({
     return <EmptyState title="No fills in the loaded window" />;
   }
   const shown = fills.slice(0, visible);
+  // Set only in the all-accounts view; a single account's rows carry no tag.
+  const tagged = fills.some((f) => f.account);
 
   return (
     <div>
@@ -143,7 +152,7 @@ export function FillsTable({
       {view === "cards" ? (
         <CardList minWidth={300}>
           {shown.map((f) => (
-            <FillCard key={f.tid} f={f} markets={markets} />
+            <FillCard key={rowKey(f.account, f.tid)} f={f} markets={markets} />
           ))}
         </CardList>
       ) : (
@@ -151,6 +160,7 @@ export function FillsTable({
           <table className="w-full min-w-[900px] border-collapse">
             <thead>
               <tr className="border-b border-edge">
+                {tagged && <Th align="left">Account</Th>}
                 <Th align="left">Time</Th>
                 <Th align="left">Market</Th>
                 <Th align="left">Action</Th>
@@ -165,9 +175,14 @@ export function FillsTable({
             <tbody>
               {shown.map((f) => (
                 <tr
-                  key={f.tid}
+                  key={rowKey(f.account, f.tid)}
                   className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/40"
                 >
+                  {tagged && (
+                    <Td align="left">
+                      <AccountTag account={f.account} />
+                    </Td>
+                  )}
                   <Td align="left" className="num text-ink2">
                     {fmtTime(f.time)}
                   </Td>

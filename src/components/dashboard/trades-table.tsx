@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import {
+  AccountTag,
   CardField,
   CardList,
   DataCard,
@@ -18,6 +19,7 @@ import {
   Td,
   Th,
 } from "@/components/ui";
+import { rowKey } from "@/lib/accounts";
 import type { OutcomeMarketMap, OutcomeMarketView } from "@/lib/api-types";
 import {
   cardTradeHref,
@@ -74,6 +76,7 @@ function TradeDetail({
   inCard = false,
 }: {
   trade: Trade;
+  /** Fallback account for the PnL card link; a merged trade names its own. */
   address: string;
   inCard?: boolean;
 }) {
@@ -91,7 +94,7 @@ function TradeDetail({
       {isCardTrade(trade) && (
         <div className="flex justify-end">
           <a
-            href={cardTradeHref(address, trade.id)}
+            href={cardTradeHref(trade.account?.address ?? address, trade.id)}
             target="_blank"
             rel="noreferrer"
             title="Shareable PnL card, rendered on the fly — the leverage badge is this account's current setting for the market"
@@ -294,7 +297,7 @@ function TradeCard({
         type="button"
         onClick={onToggle}
         aria-expanded={isOpen}
-        aria-controls={`trade-card-detail-${trade.id}`}
+        aria-controls={`trade-card-detail-${rowKey(trade.account, trade.id)}`}
         className="flex w-full items-start justify-between gap-3 text-left"
       >
         <span className="flex min-w-0 flex-col gap-1.5">
@@ -314,6 +317,7 @@ function TradeCard({
               status={trade.status}
               liquidated={trade.liquidated}
             />
+            <AccountTag account={trade.account} />
           </span>
         </span>
         <span className="flex shrink-0 flex-col items-end gap-0.5">
@@ -425,7 +429,7 @@ function TradeCard({
 
       {isOpen && (
         <div
-          id={`trade-card-detail-${trade.id}`}
+          id={`trade-card-detail-${rowKey(trade.account, trade.id)}`}
           className="mt-3 border-t border-edge"
         >
           <TradeDetail trade={trade} address={address} inCard />
@@ -456,6 +460,7 @@ export function TradesTable({
   const { fmtUsd, fmtSize } = useMoney();
   const [view, setView] = useViewMode();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [accountFilter, setAccountFilter] = useState("all");
   const [coinFilter, setCoinFilter] = useState("all");
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
   const [dirFilter, setDirFilter] = useState<DirFilter>("all");
@@ -495,9 +500,26 @@ export function TradesTable({
     [trades],
   );
 
+  // Set only in the all-accounts view, where one history is several accounts'
+  // histories interleaved; a single account's rows carry no tag.
+  const accounts = useMemo(
+    () =>
+      [
+        ...new Map(
+          trades
+            .map((t) => t.account)
+            .filter((a) => a != null)
+            .map((a) => [a.address, a]),
+        ).values(),
+      ].sort((a, b) => a.name.localeCompare(b.name)),
+    [trades],
+  );
+
   const filtered = useMemo(
     () =>
       tradesInWindow(trades, timeWindow).filter((t) => {
+        if (accountFilter !== "all" && t.account?.address !== accountFilter)
+          return false;
         if (coinFilter !== "all" && t.coin !== coinFilter) return false;
         if (kindFilter !== "all" && t.kind !== kindFilter) return false;
         if (dirFilter !== "all" && t.direction !== dirFilter) return false;
@@ -514,10 +536,21 @@ export function TradesTable({
             return true;
         }
       }),
-    [trades, timeWindow, coinFilter, resultFilter, dirFilter, kindFilter],
+    [
+      trades,
+      timeWindow,
+      accountFilter,
+      coinFilter,
+      resultFilter,
+      dirFilter,
+      kindFilter,
+    ],
   );
 
   const shown = filtered.slice(0, visible);
+  // A trade id is `coin:openedAt:seq`, unique only within one account's own
+  // reconstruction — so both the React keys and the expansion track the pair.
+  const keyOf = (t: Trade) => rowKey(t.account, t.id);
   const toggle = (id: string) =>
     setExpanded((current) => (current === id ? null : id));
 
@@ -537,6 +570,23 @@ export function TradesTable({
         onViewChange={setView}
         count={`${filtered.length} of ${tradesTotal} trades`}
       >
+        {accounts.length > 1 && (
+          <FilterSelect
+            value={accountFilter}
+            onChange={(v) => {
+              setAccountFilter(v);
+              setVisible(PAGE);
+            }}
+            label="Filter by account"
+          >
+            <option value="all">All accounts</option>
+            {accounts.map((a) => (
+              <option key={a.address} value={a.address}>
+                {a.name}
+              </option>
+            ))}
+          </FilterSelect>
+        )}
         <FilterSelect
           value={coinFilter}
           onChange={(v) => {
@@ -604,13 +654,13 @@ export function TradesTable({
         >
           {shown.map((t) => (
             <TradeCard
-              key={t.id}
+              key={keyOf(t)}
               trade={t}
               address={address}
               leverage={leverageByCoin[t.coin]}
               market={markets[t.coin]}
-              isOpen={expanded === t.id}
-              onToggle={() => toggle(t.id)}
+              isOpen={expanded === keyOf(t)}
+              onToggle={() => toggle(keyOf(t))}
             />
           ))}
         </CardList>
@@ -620,6 +670,7 @@ export function TradesTable({
             <thead>
               <tr className="border-b border-edge">
                 <Th align="left" className="w-8" />
+                {accounts.length > 0 && <Th align="left">Account</Th>}
                 <Th align="left">Market</Th>
                 <Th align="left">Side</Th>
                 <Th align="left">Result</Th>
@@ -635,13 +686,14 @@ export function TradesTable({
             </thead>
             <tbody>
               {shown.map((t) => {
-                const isOpen = expanded === t.id;
+                const key = keyOf(t);
+                const isOpen = expanded === key;
                 const market = markets[t.coin];
                 const leverage = leverageByCoin[t.coin];
                 return (
-                  <Fragment key={t.id}>
+                  <Fragment key={key}>
                     <tr
-                      onClick={() => toggle(t.id)}
+                      onClick={() => toggle(key)}
                       className={`cursor-pointer border-b border-edge transition-colors ${
                         isOpen ? "bg-panel2/60" : "hover:bg-panel2/40"
                       }`}
@@ -653,7 +705,7 @@ export function TradesTable({
                         <button
                           type="button"
                           aria-expanded={isOpen}
-                          aria-controls={`trade-detail-${t.id}`}
+                          aria-controls={`trade-detail-${key}`}
                           aria-label={`${isOpen ? "Hide" : "Show"} fills for ${
                             market
                               ? `${market.title} ${market.sideName}`
@@ -661,7 +713,7 @@ export function TradesTable({
                           } trade`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            toggle(t.id);
+                            toggle(key);
                           }}
                           className="flex items-center justify-center rounded p-1 text-ink3 transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                         >
@@ -681,6 +733,11 @@ export function TradesTable({
                           </svg>
                         </button>
                       </Td>
+                      {accounts.length > 0 && (
+                        <Td align="left">
+                          <AccountTag account={t.account} />
+                        </Td>
+                      )}
                       <Td align="left">
                         <MarketTag
                           coin={t.coin}
@@ -770,10 +827,13 @@ export function TradesTable({
                     </tr>
                     {isOpen && (
                       <tr
-                        id={`trade-detail-${t.id}`}
+                        id={`trade-detail-${key}`}
                         className="border-b border-edge"
                       >
-                        <td colSpan={12} className="p-0">
+                        <td
+                          colSpan={accounts.length > 0 ? 13 : 12}
+                          className="p-0"
+                        >
                           <TradeDetail trade={t} address={address} />
                         </td>
                       </tr>
