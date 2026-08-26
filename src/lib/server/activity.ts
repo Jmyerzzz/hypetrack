@@ -1,3 +1,4 @@
+import { sumCapitalFlow } from "../accounts";
 import type {
   ActivityPayload,
   FillView,
@@ -15,6 +16,12 @@ import {
 } from "../hyperliquid/client";
 import { describeOutcomeCoins, isOutcomeCoin } from "../hyperliquid/outcome";
 import type { HlCandle, HlFill, HlLedgerUpdate } from "../hyperliquid/types";
+import {
+  FILLS_PAYLOAD_CAP,
+  FUNDING_PAYLOAD_CAP,
+  TRADES_PAYLOAD_CAP,
+  TRANSFERS_PAYLOAD_CAP,
+} from "../payload-caps";
 import { computeStats } from "../stats";
 import {
   attributeFunding,
@@ -25,7 +32,6 @@ import {
 import { leverageMapForCoins } from "./leverage";
 import { getOutcomeIndex } from "./markets";
 
-const TRADES_PAYLOAD_CAP = 500;
 /**
  * `activeAssetData` is one request per coin, so the current-leverage lookup
  * is capped to the most recently traded markets (each info call carries rate
@@ -33,9 +39,6 @@ const TRADES_PAYLOAD_CAP = 500;
  * hundreds). Trades past the cap show unleveraged numbers.
  */
 const LEVERAGE_COIN_CAP = 40;
-const FILLS_PAYLOAD_CAP = 600;
-const FUNDING_PAYLOAD_CAP = 500;
-const TRANSFERS_PAYLOAD_CAP = 400;
 const SLICES_PER_TRADE_CAP = 60;
 /** Candle fetches for MFE/MAE are capped to the most recently traded markets. */
 const EXCURSION_COIN_CAP = 8;
@@ -127,6 +130,14 @@ function toTransferView(u: HlLedgerUpdate, userAddress: string): TransferView {
     }
   }
 
+  // Whichever side of a peer-to-peer movement isn't this account. Bridge
+  // deposits and withdrawals name no one and stay null.
+  const from = d.user?.toLowerCase() ?? null;
+  const to = d.destination?.toLowerCase() ?? null;
+  const counterparty =
+    (to != null && to !== userAddress ? to : null) ??
+    (from != null && from !== userAddress ? from : null);
+
   return {
     time: u.time,
     type: d.type,
@@ -134,6 +145,7 @@ function toTransferView(u: HlLedgerUpdate, userAddress: string): TransferView {
     amountUsd,
     detail,
     hash: u.hash,
+    counterparty,
   };
 }
 
@@ -235,19 +247,9 @@ export async function buildActivity(address: string): Promise<ActivityPayload> {
   const transfers = ledgerResult.records
     .map((u) => toTransferView(u, address))
     .reverse();
-  // Capital in and out, keyed off the sign of the USD effect rather than the
-  // ledger `type`. Accounts are routinely funded by `send`/`spotTransfer` or a
-  // peer `internalTransfer` and never touch the Arbitrum bridge, so matching
-  // only `deposit`/`withdraw` reports $0 in for them. `accountClassTransfer`
-  // is skipped: it shuffles USDC between this account's own spot and perp
-  // wallets, moving nothing in or out.
-  let totalDeposited = 0;
-  let totalWithdrawn = 0;
-  for (const t of transfers) {
-    if (t.type === "accountClassTransfer" || t.amountUsd == null) continue;
-    if (t.amountUsd > 0) totalDeposited += t.amountUsd;
-    else totalWithdrawn -= t.amountUsd;
-  }
+  // Every counterparty is external to a single account, so nothing is netted
+  // out here; the all-accounts merge passes its own set. See sumCapitalFlow.
+  const { totalDeposited, totalWithdrawn } = sumCapitalFlow(transfers);
 
   const recentFills = fills
     .slice(-FILLS_PAYLOAD_CAP)

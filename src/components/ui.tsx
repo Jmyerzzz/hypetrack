@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { RowAccount } from "@/lib/accounts";
 import type { OutcomeMarketView } from "@/lib/api-types";
 import { fmtPct, splitCents } from "@/lib/format";
 import type { ViewMode } from "@/lib/hooks";
@@ -66,6 +67,24 @@ export function Pnl({
           {fmtPct(pct, { signed: true })}
         </span>
       )}
+    </span>
+  );
+}
+
+/**
+ * Which account a row came from. Renders nothing outside the all-accounts
+ * view — a single-account page has one answer and doesn't need it repeated
+ * down every list. Deliberately neutral next to the direction and result
+ * badges: this is provenance, not another verdict on the row.
+ */
+export function AccountTag({ account }: { account?: RowAccount }) {
+  if (!account) return null;
+  return (
+    <span
+      className="inline-block max-w-[9rem] truncate rounded-md border border-edge bg-panel2 px-1.5 py-0.5 align-middle text-[11px] font-medium text-ink2"
+      title={account.address}
+    >
+      {account.name}
     </span>
   );
 }

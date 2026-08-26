@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  AccountTag,
   CardField,
   CardList,
   DataCard,
@@ -11,6 +12,7 @@ import {
   Th,
   ViewToggle,
 } from "@/components/ui";
+import { rowKey } from "@/lib/accounts";
 import type { FundingView } from "@/lib/api-types";
 import { fmtTime } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
@@ -37,6 +39,11 @@ function FundingCard({ f }: { f: FundingView }) {
         <div className="min-w-0">
           <p className="font-medium text-ink">{f.coin}</p>
           <p className="num text-[11px] text-ink3">{fmtTime(f.time)}</p>
+          {f.account && (
+            <p className="mt-1">
+              <AccountTag account={f.account} />
+            </p>
+          )}
         </div>
         <Pnl value={f.usdc} className="shrink-0 text-[15px] font-semibold" />
       </div>
@@ -72,6 +79,8 @@ export function FundingTable({
     );
   }
   const shown = funding.slice(0, visible);
+  // Set only in the all-accounts view; a single account's rows carry no tag.
+  const tagged = funding.some((f) => f.account);
 
   return (
     <div>
@@ -82,7 +91,7 @@ export function FundingTable({
       {view === "cards" ? (
         <CardList minWidth={260}>
           {shown.map((f) => (
-            <FundingCard key={`${f.time}:${f.coin}`} f={f} />
+            <FundingCard key={rowKey(f.account, `${f.time}:${f.coin}`)} f={f} />
           ))}
         </CardList>
       ) : (
@@ -90,6 +99,7 @@ export function FundingTable({
           <table className="w-full min-w-[640px] border-collapse">
             <thead>
               <tr className="border-b border-edge">
+                {tagged && <Th align="left">Account</Th>}
                 <Th align="left">Time</Th>
                 <Th align="left">Market</Th>
                 <Th>Position size</Th>
@@ -100,9 +110,14 @@ export function FundingTable({
             <tbody>
               {shown.map((f) => (
                 <tr
-                  key={`${f.time}:${f.coin}`}
+                  key={rowKey(f.account, `${f.time}:${f.coin}`)}
                   className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/40"
                 >
+                  {tagged && (
+                    <Td align="left">
+                      <AccountTag account={f.account} />
+                    </Td>
+                  )}
                   <Td align="left" className="num text-ink2">
                     {fmtTime(f.time)}
                   </Td>

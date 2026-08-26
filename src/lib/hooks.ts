@@ -1,6 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import {
+  type UseQueryResult,
+  useQueries,
+  useQuery,
+} from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import type {
   ActivityPayload,
@@ -75,21 +79,77 @@ async function getJson<T>(url: string): Promise<T> {
   return body as T;
 }
 
-export function useOverview(address: string, enabled = true) {
-  return useQuery({
-    queryKey: ["overview", address],
-    queryFn: () => getJson<OverviewPayload>(`/api/overview/${address}`),
-    refetchInterval: 30_000,
-    enabled,
+/**
+ * One query per account, reduced to the single status a page section reads.
+ * `data` arrives only once every account has answered: the all-accounts view
+ * adds their figures together, and a total missing one of its parts would be
+ * wrong rather than merely incomplete — which is also why one failure marks
+ * the whole set failed, with `errorAt` naming which account it was.
+ */
+export type AccountsQuery<T> = {
+  /** Each account's payload, in the order the addresses were given. */
+  data: T[] | undefined;
+  isPending: boolean;
+  isFetching: boolean;
+  isError: boolean;
+  error: Error | null;
+  /** Index of the first account that failed; null when none did. */
+  errorAt: number | null;
+  refetch: () => void;
+};
+
+/**
+ * Module-level so its identity is stable across renders — that is what lets
+ * TanStack memoize the combined object, and in turn what keeps the merge
+ * downstream of it from re-running on every render.
+ */
+function combineAccounts<T>(
+  results: UseQueryResult<T, Error>[],
+): AccountsQuery<T> {
+  const errorAt = results.findIndex((r) => r.isError);
+  const failed = errorAt !== -1;
+  return {
+    data: results.every((r) => r.data !== undefined)
+      ? results.map((r) => r.data as T)
+      : undefined,
+    isPending: results.some((r) => r.isPending),
+    isFetching: results.some((r) => r.isFetching),
+    isError: failed,
+    error: failed ? ((results[errorAt].error as Error) ?? null) : null,
+    errorAt: failed ? errorAt : null,
+    refetch: () => {
+      for (const result of results) result.refetch();
+    },
+  };
+}
+
+export function useOverviews(
+  addresses: string[],
+  enabled = true,
+): AccountsQuery<OverviewPayload> {
+  return useQueries({
+    queries: addresses.map((address) => ({
+      queryKey: ["overview", address],
+      queryFn: () => getJson<OverviewPayload>(`/api/overview/${address}`),
+      refetchInterval: 30_000,
+      enabled,
+    })),
+    combine: combineAccounts,
   });
 }
 
-export function useActivity(address: string, enabled = true) {
-  return useQuery({
-    queryKey: ["activity", address],
-    queryFn: () => getJson<ActivityPayload>(`/api/activity/${address}`),
-    staleTime: 120_000,
-    enabled,
+export function useActivities(
+  addresses: string[],
+  enabled = true,
+): AccountsQuery<ActivityPayload> {
+  return useQueries({
+    queries: addresses.map((address) => ({
+      queryKey: ["activity", address],
+      queryFn: () => getJson<ActivityPayload>(`/api/activity/${address}`),
+      staleTime: 120_000,
+      enabled,
+    })),
+    combine: combineAccounts,
   });
 }
 

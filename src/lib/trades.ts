@@ -1,3 +1,4 @@
+import type { RowAccount } from "./accounts";
 import { dateInputMs, fmtDay } from "./format";
 import { isOutcomeCoin } from "./hyperliquid/outcome";
 import type { HlFill, HlFundingEvent } from "./hyperliquid/types";
@@ -91,6 +92,7 @@ export type Trade = {
     mfeUsd: number;
     maeUsd: number;
   } | null;
+  account?: RowAccount;
 };
 
 export function isSpotCoin(coin: string): boolean {

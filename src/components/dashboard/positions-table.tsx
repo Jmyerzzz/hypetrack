@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  AccountTag,
   CardField,
   CardList,
   CoinTag,
@@ -16,6 +17,7 @@ import {
   Td,
   Th,
 } from "@/components/ui";
+import { rowKey } from "@/lib/accounts";
 import type { PositionTriggerView, PositionView } from "@/lib/api-types";
 import { fmtPct, fmtPrice } from "@/lib/format";
 import { useViewMode } from "@/lib/hooks";
@@ -197,10 +199,12 @@ function PositionCard({ p }: { p: PositionView }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1.5">
           <CoinTag coin={p.coin} sub={`${p.leverage}× ${p.leverageType}`} />
-          {/* Row wrapper so the badge sizes to its label; stretching it is the
-              flex-column default, and min-w-0 above still truncates the name. */}
-          <span className="flex">
+          {/* Row wrapper so the badges size to their labels; stretching them is
+              the flex-column default, and min-w-0 above still truncates the
+              name. */}
+          <span className="flex flex-wrap items-center gap-1.5">
             <DirectionBadge direction={p.direction} />
+            <AccountTag account={p.account} />
           </span>
         </div>
         <div className="shrink-0 text-right">
@@ -275,6 +279,7 @@ export function PositionsTable({
   const { fmtUsd, fmtSize } = useMoney();
   const [view, setView] = useViewMode();
   const [coinFilter, setCoinFilter] = useState("all");
+  const [accountFilter, setAccountFilter] = useState("all");
   const [marginFilter, setMarginFilter] = useState<MarginFilter>("all");
   const [pnlFilter, setPnlFilter] = useState<PnlFilter>("all");
   const [dirFilter, setDirFilter] = useState<DirFilter>("all");
@@ -290,6 +295,21 @@ export function PositionsTable({
     [positions],
   );
 
+  // Set only in the all-accounts view, where one book is several accounts'
+  // books stacked; a single account's rows carry no tag and need no control.
+  const accounts = useMemo(
+    () =>
+      [
+        ...new Map(
+          positions
+            .map((p) => p.account)
+            .filter((a) => a != null)
+            .map((a) => [a.address, a]),
+        ).values(),
+      ].sort((a, b) => a.name.localeCompare(b.name)),
+    [positions],
+  );
+
   // Only worth a control once the account actually holds both kinds.
   const hasBothMargins = useMemo(
     () => new Set(positions.map((p) => p.leverageType)).size > 1,
@@ -299,6 +319,8 @@ export function PositionsTable({
   const filtered = useMemo(
     () =>
       positions.filter((p) => {
+        if (accountFilter !== "all" && p.account?.address !== accountFilter)
+          return false;
         if (coinFilter !== "all" && p.coin !== coinFilter) return false;
         if (marginFilter !== "all" && p.leverageType !== marginFilter)
           return false;
@@ -307,7 +329,7 @@ export function PositionsTable({
         if (pnlFilter === "loss") return p.unrealizedPnl < 0;
         return true;
       }),
-    [positions, coinFilter, marginFilter, dirFilter, pnlFilter],
+    [positions, accountFilter, coinFilter, marginFilter, dirFilter, pnlFilter],
   );
 
   // Filters narrow the book; the sort orders what survives. Kept as its own
@@ -352,6 +374,20 @@ export function PositionsTable({
           positions.length === 1 ? "" : "s"
         }`}
       >
+        {accounts.length > 1 && (
+          <FilterSelect
+            value={accountFilter}
+            onChange={setAccountFilter}
+            label="Filter by account"
+          >
+            <option value="all">All accounts</option>
+            {accounts.map((a) => (
+              <option key={a.address} value={a.address}>
+                {a.name}
+              </option>
+            ))}
+          </FilterSelect>
+        )}
         <FilterSelect
           value={coinFilter}
           onChange={setCoinFilter}
@@ -414,7 +450,7 @@ export function PositionsTable({
       ) : view === "cards" ? (
         <CardList minWidth={320}>
           {sorted.map((p) => (
-            <PositionCard key={p.coin} p={p} />
+            <PositionCard key={rowKey(p.account, p.coin)} p={p} />
           ))}
         </CardList>
       ) : (
@@ -422,6 +458,7 @@ export function PositionsTable({
           <table className="w-full min-w-[960px] border-collapse">
             <thead>
               <tr className="border-b border-edge">
+                {accounts.length > 0 && <Th align="left">Account</Th>}
                 <Th align="left">Market</Th>
                 <Th align="left">Side</Th>
                 <Th>Size</Th>
@@ -437,9 +474,14 @@ export function PositionsTable({
             <tbody>
               {sorted.map((p) => (
                 <tr
-                  key={p.coin}
+                  key={rowKey(p.account, p.coin)}
                   className="border-b border-edge transition-colors last:border-0 hover:bg-panel2/50"
                 >
+                  {accounts.length > 0 && (
+                    <Td align="left">
+                      <AccountTag account={p.account} />
+                    </Td>
+                  )}
                   <Td align="left">
                     <CoinTag
                       coin={p.coin}

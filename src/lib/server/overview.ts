@@ -2,7 +2,6 @@ import type {
   OutcomePositionView,
   OverviewPayload,
   PeriodKey,
-  PnlSummaryEntry,
   PortfolioSeries,
   PositionView,
 } from "../api-types";
@@ -31,7 +30,7 @@ import type {
   HlPortfolio,
   HlSpotBalance,
 } from "../hyperliquid/types";
-import { returnOnAvgEquity } from "../risk";
+import { summarizePnl } from "../portfolio";
 import { getAllMids, getBuilderDexNames, getOutcomeIndex } from "./markets";
 
 const num = (s: string | number | null | undefined): number => {
@@ -108,25 +107,6 @@ function toSeries(portfolio: HlPortfolio): Record<string, PortfolioSeries> {
     };
   }
   return out;
-}
-
-function summarizePnl(
-  series: Record<string, PortfolioSeries>,
-): PnlSummaryEntry[] {
-  const periods: PeriodKey[] = ["day", "week", "month", "allTime"];
-  return periods.map((period) => {
-    const s = series[period];
-    // Combined (perp + spot + vaults) PnL, to match Hyperliquid's portfolio
-    // page and the combined Total Equity shown alongside these figures. Falls
-    // back to perp-only if the combined series is unavailable.
-    const cum = s?.combinedPnl.length ? s.combinedPnl : s?.pnl;
-    if (!s || !cum || cum.length === 0) return { period, pnl: 0, pct: null };
-    const pnl = cum[cum.length - 1].v - cum[0].v;
-    // % = PnL over the window's time-averaged total equity — see risk.ts
-    // for why this beats compounded TWR on sampled series.
-    const pct = returnOnAvgEquity(s.combinedValue, cum);
-    return { period, pnl, pct };
-  });
 }
 
 async function getSpotTokenInfo(): Promise<SpotTokenInfo> {
