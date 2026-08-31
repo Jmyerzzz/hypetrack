@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flattenOrders } from "./orders";
+import { flattenOrders, namespaceDexOrders } from "./orders";
 import type { HlOpenOrder } from "./types";
 
 const order = (over: Partial<HlOpenOrder> = {}): HlOpenOrder => ({
@@ -93,5 +93,21 @@ describe("flattenOrders", () => {
 
   it("de-duplicates a repeat at the top level too", () => {
     expect(flattenOrders([sl, sl]).map((o) => o.oid)).toEqual([102]);
+  });
+});
+
+describe("namespaceDexOrders", () => {
+  it("prefixes bare builder-book coins, children included", () => {
+    const [renamed] = namespaceDexOrders(
+      [order({ coin: "CL", children: [order({ oid: 2, coin: "CL" })] })],
+      "xyz",
+    );
+    expect(renamed.coin).toBe("xyz:CL");
+    expect(renamed.children[0].coin).toBe("xyz:CL");
+  });
+
+  it("keeps coins the API already namespaced", () => {
+    const [renamed] = namespaceDexOrders([order({ coin: "xyz:CL" })], "xyz");
+    expect(renamed.coin).toBe("xyz:CL");
   });
 });

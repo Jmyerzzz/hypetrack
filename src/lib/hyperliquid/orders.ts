@@ -8,6 +8,28 @@ const num = (s: string | number | null | undefined): number => {
 };
 
 /**
+ * Puts orders fetched from one HIP-3 builder DEX onto namespaced coin names
+ * (`xyz:CL`). Positions from a builder clearinghouse always arrive namespaced,
+ * and trigger matching compares coins by equality, so the book's orders must
+ * spell theirs the same way — bare names get the `dex:` prefix, names already
+ * carrying one pass through, covering either way the API reports them. A
+ * builder book holds only that builder's perps (spot orders ride only the
+ * main-DEX query), so every coin here is the prefix's to claim. Children are
+ * rewritten too, since both consumers walk them.
+ */
+export function namespaceDexOrders(
+  orders: HlOpenOrder[],
+  dex: string,
+): HlOpenOrder[] {
+  const rename = (o: HlOpenOrder): HlOpenOrder => ({
+    ...o,
+    coin: o.coin.includes(":") ? o.coin : `${dex}:${o.coin}`,
+    children: (o.children ?? []).map(rename),
+  });
+  return orders.map(rename);
+}
+
+/**
  * The perp open-order book as one flat list, newest first.
  *
  * `frontendOpenOrders` reports a bracket's TP/SL twice: once as a top-level

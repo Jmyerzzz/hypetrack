@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { namespaceDexOrders } from "./orders";
 import { matchPositionTriggers } from "./triggers";
 import type { HlOpenOrder } from "./types";
 
@@ -165,5 +166,34 @@ describe("matchPositionTriggers", () => {
     expect(matchPositionTriggers([order({ triggerPx: "0" })], longBtc)).toEqual(
       [],
     );
+  });
+
+  it("matches a builder-DEX stop once its book's orders are namespaced", () => {
+    // The reported miss: an xyz:CL short whose position SL rested in the xyz
+    // book read "—", because only the main-DEX book was ever searched. Builder
+    // books flow in through namespaceDexOrders, after which the coins align.
+    const [stop] = matchPositionTriggers(
+      namespaceDexOrders(
+        [
+          order({
+            coin: "CL",
+            side: "B",
+            orderType: "Stop Market",
+            triggerPx: "86.0",
+            triggerCondition: "Price above 86.0",
+            isPositionTpsl: true,
+          }),
+        ],
+        "xyz",
+      ),
+      { coin: "xyz:CL", szi: -67.463, refPx: 85.117 },
+    );
+    expect(stop).toEqual({
+      oid: 1,
+      kind: "sl",
+      triggerPx: 86,
+      sz: 0,
+      isMarket: true,
+    });
   });
 });

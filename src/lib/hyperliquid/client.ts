@@ -230,8 +230,21 @@ export async function fetchCandles(
   );
 }
 
-export async function fetchOpenOrders(user: string): Promise<HlOpenOrder[]> {
-  return hlInfo<HlOpenOrder[]>({ type: "frontendOpenOrders", user });
+/**
+ * Open orders with frontend metadata (trigger prices, TP/SL children) for one
+ * book. Without `dex` this is the main perp DEX plus spot; passing a HIP-3
+ * builder DEX name (from {@link fetchPerpDexs}) returns that builder's own
+ * book, which the main query never includes.
+ */
+export async function fetchOpenOrders(
+  user: string,
+  dex?: string,
+): Promise<HlOpenOrder[]> {
+  return hlInfo<HlOpenOrder[]>({
+    type: "frontendOpenOrders",
+    user,
+    ...(dex ? { dex } : {}),
+  });
 }
 
 /** Live HIP-4 outcome markets; settled ones are not returned. */
