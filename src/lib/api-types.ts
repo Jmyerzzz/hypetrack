@@ -76,7 +76,8 @@ export type PositionView = {
   fundingSinceOpen: number;
   /**
    * TP/SL trigger orders that would close this position, nearest trigger
-   * first. Main-DEX only — builder-DEX order books aren't fetched.
+   * first. Matched against the position's own book — main DEX or HIP-3
+   * builder DEX.
    */
   triggers: PositionTriggerView[];
   account?: RowAccount;

@@ -14,7 +14,7 @@ import {
   fetchSpotMetaAndAssetCtxs,
 } from "../hyperliquid/client";
 import { reconcileEquity } from "../hyperliquid/equity";
-import { flattenOrders } from "../hyperliquid/orders";
+import { flattenOrders, namespaceDexOrders } from "../hyperliquid/orders";
 import {
   describeOutcomeCoins,
   isOutcomeCoin,
@@ -40,7 +40,9 @@ const num = (s: string | number | null | undefined): number => {
 
 /** One perp position (main or builder DEX) to its view; builder coins arrive
  *  already namespaced (`xyz:SKHX`), which the coin tag renders on its own.
- *  `openOrders` is the main-DEX book, so builder positions match no triggers. */
+ *  `openOrders` must span every book the positions come from — builder-book
+ *  orders are normalized onto the same namespaced coins, so triggers match
+ *  wherever the position lives. */
 function toPositionView(
   p: HlAssetPosition["position"],
   openOrders: HlOpenOrder[],
@@ -156,26 +158,50 @@ function toOutcomePositions(
   );
 }
 
+/** One HIP-3 builder book: its clearinghouse plus its own resting orders. */
+type BuilderBook = {
+  state: HlClearinghouseState;
+  orders: HlOpenOrder[];
+};
+
 export async function buildOverview(address: string): Promise<OverviewPayload> {
-  // HIP-3 builder perps live in their own clearinghouses. Enumerate the DEXs
-  // (cached, usually a hit) then query one book each — kept as a single chained
-  // promise so the whole thing runs inside the Promise.all alongside every
-  // other call, rather than the enumeration round-trip blocking them first.
-  // A single builder's failure drops just that book; enumeration failure
-  // degrades to main-DEX only. Neither sinks the page.
-  const builderStatesPromise = getBuilderDexNames()
+  // HIP-3 builder perps live in their own clearinghouses, each with its own
+  // order book that the main-DEX order query never includes. Enumerate the
+  // DEXs (cached, usually a hit) then query one book each — kept as a single
+  // chained promise so the whole thing runs inside the Promise.all alongside
+  // every other call, rather than the enumeration round-trip blocking them
+  // first. Orders are fetched only for books the account actually uses
+  // (positions or collateral there): resting an order requires collateral in
+  // that book, and the order query carries ~10× the rate-limit weight of the
+  // state query, so sweeping every idle DEX would be pure cost. A single
+  // builder's failure drops just that book — or, for the order leg alone,
+  // just its triggers; enumeration failure degrades to main-DEX only. None
+  // of them sinks the page.
+  const builderBooksPromise = getBuilderDexNames()
     .catch(() => [])
     .then((names) =>
       Promise.all(
-        names.map((dex) =>
-          fetchClearinghouseState(address, dex).catch(() => null),
-        ),
+        names.map(async (dex): Promise<BuilderBook | null> => {
+          const state = await fetchClearinghouseState(address, dex).catch(
+            () => null,
+          );
+          if (!state) return null;
+          const inUse =
+            state.assetPositions.length > 0 ||
+            num(state.marginSummary.accountValue) > 0;
+          const orders = inUse
+            ? await fetchOpenOrders(address, dex)
+                .then((o) => namespaceDexOrders(o, dex))
+                .catch(() => [])
+            : [];
+          return { state, orders };
+        }),
       ),
     );
 
   const [
     clearinghouse,
-    builderStates,
+    builderBookStates,
     portfolio,
     openOrders,
     spotState,
@@ -184,7 +210,7 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     outcomeIndex,
   ] = await Promise.all([
     fetchClearinghouseState(address),
-    builderStatesPromise,
+    builderBooksPromise,
     fetchPortfolio(address),
     fetchOpenOrders(address),
     fetchSpotClearinghouseState(address),
@@ -193,11 +219,18 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     getOutcomeIndex(),
   ]);
 
-  // Only the builder books this account actually uses; the rest come back empty.
-  const builderBooks = builderStates.filter(
-    (s): s is HlClearinghouseState => s != null,
+  // Books whose query failed are dropped; unused ones just come back empty.
+  const builderBooks = builderBookStates.filter(
+    (b): b is BuilderBook => b != null,
   );
-  const perpBooks = [clearinghouse, ...builderBooks];
+  const perpBooks = [clearinghouse, ...builderBooks.map((b) => b.state)];
+  // Every book's orders as one account-wide list: trigger matching and the
+  // orders tab both want the whole account, and builder coins are namespaced
+  // on both sides so nothing collides across books.
+  const allOpenOrders = [
+    ...openOrders,
+    ...builderBooks.flatMap((b) => b.orders),
+  ];
 
   // HIP-4 outcome sides ride along in the spot balance list as `+8560`, but
   // they are a separate asset class: priced off their own book, not the spot
@@ -231,7 +264,7 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
 
   const positions: PositionView[] = perpBooks
     .flatMap((book) => book.assetPositions)
-    .map(({ position }) => toPositionView(position, openOrders))
+    .map(({ position }) => toPositionView(position, allOpenOrders))
     .sort((a, b) => b.positionValue - a.positionValue);
 
   const series = toSeries(portfolio);
@@ -243,7 +276,7 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
   // hold, which is why `reconcileEquity` nets against the combined equity.
   const mainPerpEquity = num(clearinghouse.marginSummary.accountValue);
   const builderPerpEquity = builderBooks.reduce(
-    (a, b) => a + num(b.marginSummary.accountValue),
+    (a, b) => a + num(b.state.marginSummary.accountValue),
     0,
   );
   const perpEquity = mainPerpEquity + builderPerpEquity;
@@ -289,7 +322,7 @@ export async function buildOverview(address: string): Promise<OverviewPayload> {
     .sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0))
     .map(({ token: _token, ...view }) => view);
 
-  const flatOrders = flattenOrders(openOrders);
+  const flatOrders = flattenOrders(allOpenOrders);
 
   return {
     address,
