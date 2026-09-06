@@ -7,7 +7,6 @@ import {
   CardList,
   CoinTag,
   DataCard,
-  DirectionBadge,
   EmptyState,
   FilterRow,
   FilterSelect,
@@ -198,12 +197,15 @@ function PositionCard({ p }: { p: PositionView }) {
     <DataCard>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1.5">
-          <CoinTag coin={p.coin} sub={`${p.leverage}× ${p.leverageType}`} />
-          {/* Row wrapper so the badges size to their labels; stretching them is
-              the flex-column default, and min-w-0 above still truncates the
+          <CoinTag
+            coin={p.coin}
+            sub={`${p.leverage}× ${p.leverageType}`}
+            direction={p.direction}
+          />
+          {/* Row wrapper so the tag sizes to its label; stretching it is the
+              flex-column default, and min-w-0 above still truncates the
               name. */}
           <span className="flex flex-wrap items-center gap-1.5">
-            <DirectionBadge direction={p.direction} />
             <AccountTag account={p.account} />
           </span>
         </div>
@@ -460,7 +462,7 @@ export function PositionsTable({
               <tr className="border-b border-edge">
                 {accounts.length > 0 && <Th align="left">Account</Th>}
                 <Th align="left">Market</Th>
-                <Th align="left">Side</Th>
+                <Th>uPnL</Th>
                 <Th>Size</Th>
                 <Th>Entry</Th>
                 <Th>Mark</Th>
@@ -468,7 +470,6 @@ export function PositionsTable({
                 <Th>TP / SL</Th>
                 <Th>Margin</Th>
                 <Th>Funding</Th>
-                <Th>Unrealized PnL</Th>
               </tr>
             </thead>
             <tbody>
@@ -486,10 +487,18 @@ export function PositionsTable({
                     <CoinTag
                       coin={p.coin}
                       sub={`${p.leverage}× ${p.leverageType}`}
+                      direction={p.direction}
                     />
                   </Td>
-                  <Td align="left">
-                    <DirectionBadge direction={p.direction} />
+                  {/* uPnL sits beside the market so it survives the horizontal
+                      scroll on narrow screens; the direction now rides on the
+                      CoinTag sub line instead of its own column. */}
+                  <Td>
+                    <Pnl
+                      value={p.unrealizedPnl}
+                      pct={p.roe}
+                      className="text-[13px]"
+                    />
                   </Td>
                   <Td>
                     <span className="num block">
@@ -527,13 +536,6 @@ export function PositionsTable({
                   <Td className="num">{smallCents(fmtUsd(p.marginUsed))}</Td>
                   <Td>
                     <Pnl value={p.fundingSinceOpen} className="text-[13px]" />
-                  </Td>
-                  <Td>
-                    <Pnl
-                      value={p.unrealizedPnl}
-                      pct={p.roe}
-                      className="text-[13px]"
-                    />
                   </Td>
                 </tr>
               ))}
