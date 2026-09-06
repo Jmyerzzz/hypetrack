@@ -163,7 +163,19 @@ function coinIconUrl(coin: string): string {
 }
 
 /** Asset tag for a market; falls back to a monogram when no icon exists. */
-export function CoinTag({ coin, sub }: { coin: string; sub?: string | null }) {
+export function CoinTag({
+  coin,
+  sub,
+  direction,
+}: {
+  coin: string;
+  sub?: string | null;
+  /**
+   * Leads the sub line with a coloured "Long"/"Short" so a row's direction
+   * reads at a glance without spending a whole column on a badge.
+   */
+  direction?: "long" | "short";
+}) {
   const [iconFailed, setIconFailed] = useState(false);
   const [dex, name] = coin.includes(":") ? coin.split(":", 2) : [null, coin];
   const display = name || coin;
@@ -198,10 +210,20 @@ export function CoinTag({ coin, sub }: { coin: string; sub?: string | null }) {
       )}
       <span className="min-w-0">
         <span className="block truncate font-medium text-ink">{display}</span>
-        {(dex || sub) && (
-          // Sub first, DEX last: "10× isolated · xyz" reads the position's own
-          // detail before the venue it trades on.
+        {(direction || dex || sub) && (
+          // Direction first, then sub, DEX last: "Long · 10× isolated · xyz"
+          // reads the position's own detail before the venue it trades on.
           <span className="block truncate text-[11px] text-ink3">
+            {direction && (
+              <span
+                className={`font-semibold uppercase tracking-wide ${
+                  direction === "long" ? "text-upt" : "text-downt"
+                }`}
+              >
+                {direction === "long" ? "Long" : "Short"}
+              </span>
+            )}
+            {direction && (dex || sub) && " · "}
             {[sub, dex].filter(Boolean).join(" · ")}
           </span>
         )}
