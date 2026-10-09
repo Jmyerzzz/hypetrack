@@ -60,6 +60,21 @@ const BENCHMARK_STROKE: Record<BenchmarkId, string> = {
 
 type Point = { t: number; v: number; usd: number };
 
+/** "A", "A and B", "A, B and C". */
+function listNames(names: string[]): string {
+  return names.length > 1
+    ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+    : (names[0] ?? "");
+}
+
+/** "Prices from Hyperliquid (BTC, xyz:SP500 and xyz:XYZ100 perps)." */
+function pricesNote(priced: { source: string; market: string }[]): string {
+  if (priced.length === 0) return "Prices from Hyperliquid perps.";
+  const sources = listNames([...new Set(priced.map((p) => p.source))]);
+  const markets = listNames(priced.map((p) => p.market));
+  return `Prices from ${sources} (${markets} ${priced.length > 1 ? "perps" : "perp"}).`;
+}
+
 /** A plotted point plus whatever benchmark values line up with it. */
 type Row = Point & Partial<Record<BenchmarkId, number | null>>;
 
@@ -316,24 +331,23 @@ export function EquityChart({
     if (benchmarks.isFetching || benchmarks.isError) return null;
     const missing = active.filter((b) => b.pct == null);
     if (missing.length === 0) return null;
-    const names = missing.map((b) => b.meta.name);
     return {
-      names:
-        names.length > 1
-          ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
-          : names[0],
+      names: listNames(missing.map((b) => b.meta.name)),
       // Both indices usually fail identically; say it once when they do.
       reasons: [...new Set(missing.map((b) => b.error).filter(Boolean))],
     };
   }, [active, benchmarks.isFetching, benchmarks.isError]);
 
   /**
-   * Who actually answered. Worth naming rather than crediting "public index
-   * closes" generically: only some upstreams carry intraday bars, so the
-   * source is what tells a reader whether a flat 24H index line is a bug.
+   * Who answered, and off which markets. Every benchmark is a Hyperliquid
+   * perp, but the index lines are trade.xyz's contracts rather than the cash
+   * indices, and the footnote is where a reader learns that.
    */
-  const sources = useMemo(
-    () => [...new Set(active.map((b) => b.source).filter(Boolean))],
+  const priced = useMemo(
+    () =>
+      active.flatMap((b) =>
+        b.source == null ? [] : [{ source: b.source, market: b.meta.market }],
+      ),
     [active],
   );
 
@@ -619,9 +633,7 @@ export function EquityChart({
             : "Benchmarks buy the account’s equity at the window’s start and hold it."}{" "}
           {benchmarks.isError
             ? "Prices are unavailable right now."
-            : sources.length > 0
-              ? `Prices from ${sources.join(", ")}.`
-              : "Prices from Hyperliquid (BTC) and public index closes."}
+            : pricesNote(priced)}
           {unavailable && (
             <>
               {" "}

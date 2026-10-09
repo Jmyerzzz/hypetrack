@@ -17,10 +17,15 @@ fills, and orders cover both perps and outcome markets.
 - **Equity & PnL charts** — perp equity and cumulative PnL curves per
   timeframe, with profit/loss split coloring around zero.
 - **Benchmark overlays** — toggle **BTC**, the **S&P 500** and the **Nasdaq
-  100** onto either curve. Each one buys the account's equity as of the
-  window's start and holds it, so the comparison is plotted in the chart's own
-  dollars on one axis rather than on a second percentage scale; the toggle
-  doubles as the legend and carries the benchmark's return over the window.
+  100** onto either curve. All three are priced off Hyperliquid perps — BTC
+  from the main book, the indices from trade.xyz's HIP-3 markets (`xyz:SP500`,
+  the licensed S&P 500 contract, and `xyz:XYZ100`, its Nasdaq-100-style index
+  of 100 large US companies) — so they trade on the account's own 24/7 clock
+  rather than holding a Friday close through the weekend. Each one buys the
+  account's equity as of the window's start and holds it, so the comparison
+  is plotted in the chart's own dollars on one axis rather than on a second
+  percentage scale; the toggle doubles as the legend and carries the
+  benchmark's return over the window.
   Every benchmark is dashed the same way — the dash means "reference", the
   account's own solid filled curve is the subject — and the three hues are
   picked to stay apart from each other and from the accent under simulated
@@ -112,12 +117,12 @@ Everything is served from two Next.js route handlers that talk to
   perp-account portfolio equity/PnL history, and open perp orders. Cached ~30s,
   auto-refreshed by the client.
 - `GET /api/benchmarks/[period]` — benchmark closes for one chart window
-  (`day` / `week` / `month` / `allTime`). BTC comes from Hyperliquid's own
-  `candleSnapshot`; the two equity indices have no Hyperliquid market, so they
-  come from a public quote endpoint (Yahoo Finance, with Stooq's daily CSV
-  behind it). Global market data, not account data — it is cached per window
-  and per benchmark, fetched only once a benchmark is switched on, and a
-  benchmark whose upstream is down simply drops out of the chart.
+  (`day` / `week` / `month` / `allTime`), all from Hyperliquid's own
+  `candleSnapshot`: BTC on the main book, the S&P 500 and Nasdaq 100 as
+  trade.xyz's `xyz:SP500` and `xyz:XYZ100` perps. Global market data, not
+  account data — it is cached per window and per benchmark, fetched only once
+  a benchmark is switched on, and a benchmark whose market returns nothing
+  drops out of the chart with the API's reason in the footnote.
 - `GET /api/subaccounts/[address]` — the sub-accounts owned by an address,
   for the account switcher. Cached ~5min; the combined view fetches the
   overview and activity routes once per address and merges them client-side
@@ -160,5 +165,7 @@ Geist Sans/Mono.
 - Benchmark comparisons are buy-and-hold from the window's start. An account
   that deposits or withdraws mid-window moves for reasons the benchmark can't;
   the trading PnL and return beside the equity figure are the deposit-neutral
-  read.
+  read. The index benchmarks are perp marks, which track index futures rather
+  than the cash index, and their history starts at each market's listing — an
+  all-time index line can begin mid-chart.
 - Not affiliated with Hyperliquid. Nothing here is financial advice.
