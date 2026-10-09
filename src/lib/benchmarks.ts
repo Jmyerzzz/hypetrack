@@ -1,6 +1,9 @@
 /**
  * Buy-and-hold benchmarks for the equity chart: "how would the same stack have
- * done in BTC, or in the index funds everyone else owns?".
+ * done in BTC, or in the index funds everyone else owns?". Every one is priced
+ * off a Hyperliquid perp (see `market`), so the comparison runs on the same
+ * clock as the account — around the clock — rather than on the cash index's
+ * trading day.
  *
  * The comparison is deliberately plotted in the chart's own units rather than
  * on a second % axis — a benchmark is the account's starting equity for the
@@ -16,7 +19,13 @@ export type BenchmarkMeta = {
   label: string;
   /** Full name, for tooltips and titles. */
   name: string;
-  /** Where the prices come from, disclosed in the chart's footnote. */
+  /**
+   * The Hyperliquid perp whose candles price it, spelled the way
+   * `candleSnapshot` takes it: a bare coin on the main book, `dex:COIN` on a
+   * HIP-3 builder DEX. Named in the chart's footnote.
+   */
+  market: string;
+  /** Where the prices come from, disclosed in the chip's tooltip. */
   source: string;
 };
 
@@ -30,19 +39,27 @@ export const BENCHMARKS: readonly BenchmarkMeta[] = [
     id: "btc",
     label: "BTC",
     name: "Bitcoin",
-    source: "Hyperliquid BTC-PERP candles",
+    market: "BTC",
+    source: "Hyperliquid BTC perp",
   },
   {
     id: "spx",
     label: "S&P 500",
     name: "S&P 500",
-    source: "index closes",
+    // The licensed S&P 500 contract, listed by trade.xyz in March 2026.
+    market: "xyz:SP500",
+    source: "trade.xyz's S&P 500 perp on Hyperliquid",
   },
   {
     id: "ndx",
     label: "Nasdaq",
     name: "Nasdaq 100",
-    source: "index closes",
+    // The Nasdaq 100 itself isn't licensed on Hyperliquid. XYZ100 is
+    // trade.xyz's own counterpart — 100 large non-financial US-listed
+    // companies, modified cap-weighted — and what the rest of the ecosystem
+    // quotes as its Nasdaq 100.
+    market: "xyz:XYZ100",
+    source: "trade.xyz's XYZ100 perp on Hyperliquid, a Nasdaq-100-style index",
   },
 ] as const;
 
@@ -77,8 +94,8 @@ export function isBenchmarkPeriod(value: string): value is BenchmarkPeriod {
 
 /**
  * Clean up a raw price series: finite positive closes only, ascending by
- * time, one point per timestamp. Both upstreams occasionally serve a null
- * close (an index bar that hasn't printed yet) or repeat the newest bar.
+ * time, one point per timestamp. A candle snapshot can repeat its newest bar,
+ * and a close that doesn't parse must not become a hole in the line.
  */
 export function normalizePoints(points: BenchmarkPoint[]): BenchmarkPoint[] {
   const byTime = new Map<number, number>();
@@ -91,10 +108,10 @@ export function normalizePoints(points: BenchmarkPoint[]): BenchmarkPoint[] {
 
 /**
  * Benchmark price in force at each of `times`, as a step function: the last
- * close at or before that moment. Prices carry forward across gaps, which is
- * what an equity index does over a weekend — it holds its Friday close while
- * the account keeps trading. Timestamps before the first close have no price
- * and come back null rather than borrowing a later one.
+ * close at or before that moment. Prices carry forward across gaps — a
+ * holding is worth its last print until the next one, and the account's own
+ * timestamps rarely land on a candle boundary. Timestamps before the first
+ * close have no price and come back null rather than borrowing a later one.
  *
  * Both arrays must be ascending; the walk is linear rather than a binary
  * search per point because the caller already has them in order.
